@@ -7,6 +7,19 @@
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
+int delay_interval = 2000; // Tempo inicial de medição
+
+void mqtt_callback(char* topic, byte* payload, unsigned int length) {
+  if (strcmp(topic, MQTT_CONFIG_TOPIC) == 0) {
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, payload, length);
+    if (!error && doc.containsKey("measurement_interval_ms")) {
+      delay_interval = doc["measurement_interval_ms"];
+      Serial.print("Novo intervalo recebido: ");
+      Serial.println(delay_interval);
+    }
+  }
+}
 
 void setup_wifi() {
   delay(10);
@@ -32,6 +45,7 @@ void reconnect() {
     Serial.print("Tentando conexão MQTT...");
     if (client.connect(DEVICE_ID)) {
       Serial.println("conectado!");
+      client.subscribe(MQTT_CONFIG_TOPIC); // Ouve os comandos de config
     } else {
       Serial.print("falhou, rc=");
       Serial.print(client.state());
@@ -45,6 +59,7 @@ void setup() {
   Serial.begin(115200);
   setup_wifi(); // Inicializa conexão com a rede local
   client.setServer(MQTT_BROKER, MQTT_PORT); // Configura o Broker MQTT de destino
+  client.setCallback(mqtt_callback); // Registra a função que ouve as mensagens
 }
 
 void loop() {
@@ -54,7 +69,7 @@ void loop() {
   client.loop();
 
   long now = millis();
-  if (now - lastMsg > 2000) { // Frequência de amostragem: 2 segundos
+  if (now - lastMsg > delay_interval) { // Frequência controlada dinamicamente
     lastMsg = now;
 
     // --- Coleta de Dados (Simulação de Sensores Industriais) ---

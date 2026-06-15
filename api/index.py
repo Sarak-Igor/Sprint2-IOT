@@ -86,6 +86,13 @@ async def update_config(config: dict):
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f)
+            
+        # Publica no MQTT para notificar o ESP32 real ou Wokwi
+        if "interval" in config:
+            # Converte segundos do front para ms no ESP32
+            payload = json.dumps({"measurement_interval_ms": config["interval"] * 1000})
+            mqtt_client.publish("Forzy/config/device", payload)
+
     except Exception as e:
         # No Vercel o sistema de arquivos é read-only, então ignoramos o erro de escrita
         # O estado 'running' será gerenciado pelo próprio frontend

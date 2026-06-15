@@ -7,7 +7,15 @@ sys.path.append(str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from backend.apps.ingestion_service.adapters.mock_provider import MqttMockProvider
 
+import os
+
 async def main():
+    if os.getenv("MOCK_ENABLED", "true").lower() == "false":
+        print("Modo Hardware Ativo - Simulador Python desabilitado via MOCK_ENABLED.")
+        # Mantém vivo para o Docker não cair (loop infinito inofensivo)
+        while True:
+            await asyncio.sleep(3600)
+
     print("Iniciando Ingestion Service (Modo MQTT com Gerador de Caos)...")
     provider = MqttMockProvider()
     await provider.start_loop()

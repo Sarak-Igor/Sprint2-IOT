@@ -11,6 +11,7 @@ const char* WIFI_PASSWORD = "";
 const char* MQTT_BROKER = "10.0.0.2"; // Placeholder: Ajustar para o IP da máquina host
 const int   MQTT_PORT   = 1883;
 const char* MQTT_TOPIC  = "Forzy/telemetry/W22_IR3_Premium";
+const char* MQTT_CONFIG_TOPIC = "Forzy/config/device";
 
 // --- Identificação do Ativo ---
 const char* DEVICE_ID = "WEG_W22_Wokwi_Sim";
