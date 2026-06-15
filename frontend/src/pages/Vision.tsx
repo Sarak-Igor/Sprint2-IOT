@@ -60,6 +60,9 @@ const Vision = () => {
                                     src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=800" 
                                     alt="Placa Escaneada"
                                     className="w-full h-full object-cover opacity-80"
+                                    loading="lazy"
+                                    width="800"
+                                    height="450"
                                 />
                             ) : (
                                 <>

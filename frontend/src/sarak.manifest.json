@@ -47,7 +47,7 @@
       "label": "Provisionamento",
       "icon": "Settings",
       "category": "Infraestrutura",
-      "active": true
+      "active": false
     },
     {
       "id": "history",

@@ -188,7 +188,6 @@ const DigitalTwin = () => {
 
     const handleUpdateThresholds = async () => {
         try {
-            console.log("[DEBUG] Enviando thresholds:", editableThresholds);
             const res = await fetch(`/api/assets/active/${selectedAsset.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -197,7 +196,6 @@ const DigitalTwin = () => {
 
             if (res.ok) {
                 const updatedAsset = await res.json();
-                console.log("[DEBUG] Resposta do servidor:", updatedAsset);
                 
                 // 1. Atualiza o ativo na lista geral primeiro
                 setAssets(prev => prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a));
@@ -225,7 +223,6 @@ const DigitalTwin = () => {
                 setIsEditingThresholds(false);
                 
                 // Feedback visual sutil (pode ser melhorado com toast futuramente)
-                console.log("Configurações persistidas com sucesso!");
                 
                 // Recarrega os ativos para garantir paridade total
                 setTimeout(() => fetchAssets(), 500);
@@ -298,7 +295,6 @@ const DigitalTwin = () => {
                         const now = Date.now();
                         // 60 segundos de cooldown por sensor/status
                         if (now - lastAlert > 60000) {
-                            console.log(`[ALERTA DETECTADO] Acionando Telegram para ${s.variable} (Status: ${status})`);
                             localStorage.setItem(`alert_${s.topic}_${status}`, now.toString());
                             fetch('/api/alerts/telegram', {
                                 method: 'POST',
@@ -412,7 +408,6 @@ const DigitalTwin = () => {
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                                console.log("Iniciando deleção do ativo:", asset.id);
                                                 handleDeleteAsset(asset.id, e);
                                             }}
                                             className="p-4 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl transition-all border border-red-500/20 relative z-50"

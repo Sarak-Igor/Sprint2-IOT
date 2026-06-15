@@ -229,7 +229,6 @@ const Dashboard = () => {
                         const now = Date.now();
                         // 60 segundos de cooldown por sensor/status para não enviar repetido
                         if (now - lastAlert > 60000) {
-                            console.log(`[ALERTA PAINEL GERAL] Acionando Telegram para ${s.variable} (Status: ${status})`);
                             localStorage.setItem(`alert_${topicKey}_${status}`, now.toString());
                             fetch('/api/alerts/telegram', {
                                 method: 'POST',
