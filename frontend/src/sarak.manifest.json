@@ -1,0 +1,81 @@
+{
+  "system": {
+    "id": "Forzy",
+    "name": "Forzy Digital Twin",
+    "version": "1.0.2",
+    "branding": {
+      "primaryColor": "#00ffcc",
+      "mode": "dark"
+    }
+  },
+  "design": {
+    "layout": "sovereign",
+    "theme": "industrial",
+    "density": "comfortable"
+  },
+  "modules": [
+    {
+      "id": "dashboard",
+      "label": "Painel Geral",
+      "icon": "Activity",
+      "category": "Operacional",
+      "active": true
+    },
+    {
+      "id": "digital_twin",
+      "label": "Gêmeo Digital",
+      "icon": "Cpu",
+      "category": "Operacional",
+      "active": true
+    },
+    {
+      "id": "anomalies",
+      "label": "Alertas & Anomalias",
+      "icon": "AlertTriangle",
+      "category": "Operacional",
+      "active": true
+    },
+    {
+      "id": "catalogs",
+      "label": "Catálogo Industrial",
+      "icon": "Box",
+      "category": "Infraestrutura",
+      "active": true
+    },
+    {
+      "id": "assets",
+      "label": "Provisionamento",
+      "icon": "Settings",
+      "category": "Infraestrutura",
+      "active": true
+    },
+    {
+      "id": "history",
+      "label": "Histórico Operacional",
+      "icon": "Clock",
+      "category": "Industrial",
+      "active": true
+    },
+    {
+      "id": "vision",
+      "label": "Visão Computacional",
+      "icon": "Cpu",
+      "category": "Industrial",
+      "active": true
+    },
+    {
+      "id": "knowledge",
+      "label": "Base de Conhecimento",
+      "icon": "BookOpen",
+      "category": "Suporte",
+      "active": true
+    },
+    {
+      "id": "simulator",
+      "label": "Flow Vision",
+      "icon": "Zap",
+      "category": "Diagnóstico",
+      "active": true
+    }
+  ]
+}

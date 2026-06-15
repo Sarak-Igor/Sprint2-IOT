@@ -1,0 +1,35 @@
+{
+  "asset_info": {
+    "manufacturer": "WEG",
+    "model": "W22 Magnet",
+    "frame_size": "225S/M"
+  },
+  "nominal_data": {
+    "power_cv": 75.0,
+    "power_kw": 55.0,
+    "voltage_v": [380, 440, 460],
+    "current_a": {
+      "380V": 105.0,
+      "440V": 90.5
+    },
+    "rpm": 1800,
+    "frequency_hz": 60,
+    "service_factor": 1.15,
+    "min_eff": 92.5,
+    "max_eff": 96.8
+  },
+  "alerts_thresholds": {
+    "temperature_windings_c": {
+      "warning": 110.0,
+      "critical": 130.0
+    },
+    "temperature_bearings_c": {
+      "warning": 85.0,
+      "critical": 95.0
+    },
+    "vibration_rms_mm_s": {
+      "warning": 2.8,
+      "critical": 4.5
+    }
+  }
+}

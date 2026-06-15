@@ -1,0 +1,20 @@
+{
+  "tag": "WEG_W22_01",
+  "manufacturer": "WEG",
+  "model": "W22 IR3 Premium",
+  "type": "Motor Elétrico Trifásico",
+  "specifications": {
+    "voltage": "220/380/440V",
+    "frequency": "60Hz",
+    "power_kw": 0.75,
+    "rpm_nominal": 1750,
+    "insulation_class": "F",
+    "protection_degree": "IP55"
+  },
+  "thresholds": {
+    "temp_critical": 155.0,
+    "temp_warning": 120.0,
+    "vibration_critical": 4.5,
+    "vibration_warning": 2.8
+  }
+}

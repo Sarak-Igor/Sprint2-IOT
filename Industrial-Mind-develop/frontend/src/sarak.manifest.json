@@ -1,0 +1,61 @@
+{
+  "system": {
+    "id": "Forzy",
+    "name": "Forzy Digital Twin",
+    "version": "1.0.2",
+    "branding": {
+      "primaryColor": "#00ffcc",
+      "mode": "dark"
+    }
+  },
+  "design": {
+    "layout": "sovereign",
+    "theme": "industrial",
+    "density": "comfortable"
+  },
+  "modules": [
+    {
+      "id": "dashboard",
+      "label": "Gêmeo Digital",
+      "icon": "Activity",
+      "category": "Industrial",
+      "active": true
+    },
+    {
+      "id": "assets",
+      "label": "Gestão de Ativos",
+      "icon": "Database",
+      "category": "Industrial",
+      "active": true
+    },
+    {
+      "id": "history",
+      "label": "Histórico Operacional",
+      "icon": "Clock",
+      "category": "Industrial",
+      "active": true
+    },
+    {
+      "id": "vision",
+      "label": "Visão Computacional",
+      "icon": "Cpu",
+      "category": "Industrial",
+      "active": true
+    },
+    {
+      "id": "knowledge",
+      "label": "Base de Conhecimento",
+      "icon": "BookOpen",
+      "category": "Suporte",
+      "active": true
+    },
+    {
+      "id": "mx-customization",
+      "label": "Design Engine",
+      "icon": "Palette",
+      "category": "Configurações",
+      "native": true,
+      "active": true
+    }
+  ]
+}
