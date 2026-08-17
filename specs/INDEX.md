@@ -1,9 +1,35 @@
-# 🧭 Mapa de Especificações: Forzy
+# 🧭 Mapa de Especificações: Industrial Mind
 
-> **Atenção IAs:** Este diretório contém a fonte da verdade do projeto. Leia a Arquitetura antes de iniciar qualquer Spec de Negócio.
+> **Atenção IAs:** Este diretório é a fonte da verdade do projeto. **Comece por `00-contexto.md`** — nenhuma
+> tarefa começa antes dele.
+
+## Ordem de leitura
+
+| # | Arquivo | O que é |
+|---|---|---|
+| 1 | **`00-contexto.md`** | O que este repositório é, regras inegociáveis e o mapa "que spec eu leio para esta tarefa?" |
+| 2 | **`00-knowledge.md`** | Roteador de capacidades: situação → skill/command/agent/hook. Universal. |
+| 3 | **`00-indice.md`** | Fila de execução das plans, com dependências e status. |
+| 4 | **`00-prompt-revisor.md`** / **`00-prompt-executor.md`** | O prompt do seu papel. Leia o seu, conheça o outro. |
+| 5 | `arquitetura/` → `specs/` → `adr/` | O detalhe: o COMO, o QUÊ e o POR QUÊ. |
 
 ## Estrutura do Vault
-- 📁 **`arquitetura/`**: Design Vivo e regras globais do projeto (O COMO). Leia primeiro.
-- 📁 **`specs/`**: Specs Vivas de funcionalidades (O QUÊ).
-- 📁 **`adr/`**: ADRs (Architecture Decision Records) imutáveis (O POR QUÊ).
-- 📁 **`_templates/`**: Moldes para criar novas Specs e ADRs.
+
+- 📄 **`00-*.md`**: as specs de processo — contexto, roteamento de capacidades, índice de execução e os prompts
+  dos dois papéis. São a entrada de qualquer agente.
+- 📁 **`arquitetura/`**: design vivo e regras globais (O COMO).
+- 📁 **`specs/`**: specs vivas de funcionalidades (O QUÊ).
+- 📁 **`adr/`**: decisões imutáveis (O POR QUÊ). Decisão nova = ADR novo.
+- 📁 **`plan/`**: as plans **ativas** (`plan-NN-<slug>.md`) — a fila de execução. É por elas que toda
+  alteração do repositório passa.
+  - 📁 **`plan/executadas/`**: as plans aprovadas (🟢), **aguardando síntese**. Fila de espera, não arquivo
+    permanente — a skill `spec-atualizar` remove cada plan assim que a transporta para a spec fixa de
+    destino. Depois de removida, o rastro fica no histórico do Git, não nesta pasta.
+- 📁 **`_templates/`**: moldes (`template-spec`, `template-arquitetura`, `template-adr`, `template-plan`).
+
+## O ciclo em uma linha
+
+`revisor escreve plan` → `executor executa (worktree, sem commit)` → `revisor verifica, aprova e move para
+plan/executadas/` → `usuário commita` → `spec-atualizar sintetiza nas specs fixas e remove a plan`
+
+Detalhe em [`README.md`](README.md).
