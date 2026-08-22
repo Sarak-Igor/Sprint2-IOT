@@ -215,6 +215,17 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
   chamado em nenhum lugar do frontend — a antiga pendência de "aguardar hardware de câmera" para esse endpoint
   específico não se aplica mais; ele é código órfão coberto pela remoção da `plan-05`, não por uma feature a
   construir. A visão computacional de verdade (leitura de placa por foto) é escopo da `plan-03`.
+- **2026-08-22:** `plan-03` (Visão Computacional) pivotou de LLM multimodal (OpenRouter) para
+  **OCR 100% local** (`easyocr`/`opencv-python-headless`, já declarados em `requirements.txt` sob
+  "Preparação Sprint 2", nunca usados até então) — decisão do usuário, mesma linha da `plan-04`
+  (projeto roda local por padrão). A execução anterior via LLM foi descartada; a plan foi
+  reescrita e reaberta.
+- **2026-08-22:** Apesar de `adr/005-integracoes-iniciais.md` aceitar Cloudflare R2 e de já existir
+  `backend/shared_infra/storage_client.py` (usado hoje só pelo endpoint mockado `GET /api/manuals`, com
+  credenciais reais já presentes no `.env`), **decisão explícita do usuário: o projeto roda majoritariamente
+  local e novas features não devem depender de rede externa por padrão**. A `plan-04` (RAG/Knowledge Base) foi
+  corrigida para armazenar manuais e vetor-store 100% em disco local, não via R2. Não decidir sozinho por R2
+  em nenhuma plan nova sem pedido explícito — perguntar antes.
 
 ## Pendências cobertas pela fila ativa (ver `00-indice.md` para status corrente)
 - Código órfão em `digital_twin_core` (`main.py`, `anomaly_logger.py`, `converters/metric_converter.py`) e o

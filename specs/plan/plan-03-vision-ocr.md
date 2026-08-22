@@ -1,58 +1,110 @@
 ---
 tipo: "plan"
-titulo: "Implementar Visão Computacional OCR para Placas"
+titulo: "Implementar Visão Computacional OCR local para Placas (EasyOCR)"
 dominio: "vision_service"
-status: "🟣 Verificação do dono"
+status: "🔴 A executar"
 prioridade: "Alta"
-tags: ["plan", "ocr", "vision"]
+tags: ["plan", "ocr", "vision", "local"]
 relacionados: ["[[specs/04-vision-ocr]]"]
-depende_de: "plan-02-catalog-intelligence"
+depende_de: "—"
 destino_sintese: "specs/04-vision-ocr.md"
 ---
+
+> **Revisada em 2026-08-22 — pivot de arquitetura.** A primeira execução desta plan (resumo e
+> veredito abaixo, preservados como histórico) implementou a leitura da placa via LLM multimodal
+> (OpenRouter). Decisão do usuário: trocar para **OCR local** (`easyocr` + `opencv-python-headless`,
+> já declarados em `requirements.txt` sob o comentário "Preparação Sprint 2", nunca usados até
+> aqui) — zero custo por chamada, zero dependência de rede externa por requisição, consistente
+> com a decisão já tomada na `plan-04` de manter o projeto local. **As instruções abaixo (§1-§8)
+> substituem integralmente a versão anterior** — o executor desta rodada deve **remover**
+> `backend/apps/asset_manager/vision/llm_vision.py` (o módulo LLM) e os testes que o mockavam,
+> substituindo pela implementação local descrita aqui. `schemas.py` e `router.py` podem ser
+> largamente reaproveitados (ver §5).
+
 # 1. Objetivo
-Conectar a tela de Visão Computacional a um modelo multimodal (OpenRouter) capaz de ler a placa do motor (imagem) e extrair os dados técnicos reais.
+A tela de Visão Computacional lê a placa do motor (imagem) e extrai os dados técnicos usando OCR
+**100% local** — sem chamar nenhuma API externa, sem custo por scan.
 
 # 2. Contexto
-A aba de Visão Computacional tem UI belíssima, mas a função `simulateScan` roda um `setTimeout` de 2.5s retornando um json fixo. Precisamos ligar isso ao LLM Visual.
+`backend/apps/asset_manager/vision/schemas.py` e `router.py` (da execução anterior) já definem o
+contrato: `PlateExtractionResult` (9 campos: `modelo`, `potencia`, `rpm`, `carcaca`, `tensao`,
+`corrente`, `ip`, `classe_isol`, `confianca`) e `POST /vision/scan` (`UploadFile`, validação de
+`content_type`/tamanho antes de processar). Isso continua valendo. O que muda é **como** o texto é
+extraído: em vez de `llm_vision.py` (chamada ao OpenRouter), um pipeline local com `easyocr`
+(detecção + leitura de texto) e heurística/regex própria (mapear o texto solto detectado para os
+9 campos — EasyOCR não sabe que um número é "RPM", só le o texto, então essa estruturação é lógica
+nova a escrever). `opencv-python-headless` fica disponível para pré-processamento de imagem
+(escala de cinza, threshold, etc.) se o executor julgar necessário para melhorar a leitura —
+decisão de implementação, não obrigatória.
 
 # 3. Escopo
 ## 3.1 Dentro
-- `backend/apps/asset_manager/vision/*` (Criar a rota de extração visual).
-- `frontend/src/pages/Vision.tsx` (Substituir o MOCK por fetch de multipart/form-data).
+- `backend/apps/asset_manager/vision/*` — remover `llm_vision.py`; criar o pipeline OCR local
+  (nome de arquivo(s) a critério do executor, mas **separando** claramente a chamada bruta ao
+  EasyOCR — difícil de testar sem baixar pesos de modelo — da lógica de estruturação/heurística
+  — pura, testável sem EasyOCR de verdade). Manter `schemas.py`/`router.py` como estão, ajustando
+  só o que for necessário para importar o novo módulo em vez do antigo.
+- `requirements.txt` — nenhuma mudança esperada (`easyocr`/`opencv-python-headless` já declarados).
+- `frontend/src/pages/Vision.tsx` — nenhuma mudança esperada (já consome `/api/vision/scan`
+  genericamente); ajustar só se o contrato de resposta mudar (não deveria).
+- `backend/apps/asset_manager/tests/test_vision_endpoint.py` — adaptar os testes que mockavam
+  `extract_plate_data`/LLM para mockar a função de OCR local equivalente.
 
 ## 3.2 Fora
-- Estilização do Sarak-UI (Não quebrar animações existentes).
+- `backend/shared_infra/config.py` — esta feature não usa `settings.openrouter_*` nem precisa de
+  nenhuma chave nova. Não toque nos campos `openrouter_*` (seguem em uso por `plan-02`/`plan-04`).
+- Estilização do Sarak-UI (não quebrar animações existentes).
+- Persistência em banco do resultado do scan (mesma decisão da execução anterior — fora de escopo).
 
 # 4. Referências obrigatórias
 | Tipo | Referência | Por quê |
 |---|---|---|
-| Contexto | `00-contexto.md` (Fail-Fast de Configurações, §2) · `00-knowledge.md` | sempre |
-| Skill | `cyber-ia` | proteção de injeção na visão (imagem/texto adversarial) |
+| Contexto | `00-contexto.md` §8 (decisão de manter o projeto local) · `00-knowledge.md` | sempre |
+| Skill | `cyber-ia` | agora focado em limite de recurso (imagem grande/decompression bomb antes do OpenCV processar), não mais em prompt injection de LLM — não há prompt de LLM nesta versão |
 | Skill | `padrao-python` + `padrao-typescript` | regras base |
-| Skill | `test-unitario` | Cobrir o endpoint novo (mock da chamada multimodal) |
-| Código | `backend/shared_infra/config.py` | onde a chave da API do LLM multimodal deve ser lida via Pydantic |
+| Skill | `test-unitario` | o parser heurístico (texto bruto → campos) é o alvo principal de teste — puro, sem I/O, sem precisar do modelo do EasyOCR carregado |
+| Código | `backend/apps/asset_manager/vision/schemas.py`, `router.py` | ler antes — já existem e devem ser reaproveitados |
+| Código | `backend/apps/asset_manager/vision/llm_vision.py` (a remover) | ler antes de remover, para não perder nenhuma validação de negócio útil (allowlist de tipo, limite de tamanho — esses ficam, vivem no `router.py`, não no arquivo removido) |
 
 # 5. Instruções de execução
-1. Confirmar que a variável de chave de API do LLM (mesma de `plan-02`, se `plan-02` já tiver sido executada;
-   caso contrário, adicionar em `backend/shared_infra/config.py` seguindo o mesmo padrão) está disponível —
-   nunca hardcoded.
-2. Substituir o json hardcoded no frontend por requisição POST para `/api/vision/scan`.
-3. No Backend, receber o upload e disparar requisição para OpenRouter multimodal (ex: GPT-4o ou Claude 3).
-4. Retornar JSON estruturado validado via Pydantic.
-5. Escrever teste unitário do endpoint com a chamada multimodal mockada.
+1. Ler `llm_vision.py` e removê-lo (junto de qualquer import dele em `router.py`).
+2. Criar o wrapper fino de OCR bruto: instancia `easyocr.Reader` (idiomas pt/en) e chama
+   `readtext()` sobre a imagem recebida, devolvendo a lista de `(texto, confiança)` detectada —
+   sem nenhuma lógica de negócio aqui, só a chamada ao motor.
+3. Criar a função pura de estruturação: recebe a lista de textos/confianças detectados e devolve
+   um `PlateExtractionResult` — usa regex/heurística para reconhecer padrões plausíveis de cada
+   campo (ex.: token com "IP" seguido de dois dígitos → `ip`; valores separados por "/" com "V" →
+   `tensao`; etc.). Campo não reconhecido com confiança razoável vira `"Não legível"` (mesma
+   filosofia da versão anterior — nunca inventar valor). `confianca` do resultado agregado deve
+   refletir a confiança real das detecções usadas (ex.: média das confianças dos campos
+   efetivamente preenchidos), não um valor fixo.
+4. Ligar o `router.py` à nova função de estruturação, mantendo a validação de `content_type`/
+   tamanho já existente antes de processar (evita gastar CPU/RAM com OCR em arquivo inválido).
+5. Adaptar `test_vision_endpoint.py`: os testes de 415/413/sucesso continuam válidos no formato
+   (mock da função de extração, não da rota); adicionar testes novos e diretos da função pura de
+   estruturação (item 3) com listas de texto bruto simuladas cobrindo: placa bem formatada, texto
+   parcialmente ilegível (deve virar "Não legível" nos campos não reconhecidos, não erro), e texto
+   sem nenhum padrão reconhecível (deve devolver o schema todo como "Não legível", não falhar).
+6. Rodar a suíte completa e confirmar verde.
 
 # 6. Critérios de aceite
-- [ ] OCR devolve campos corretos da placa (rpm, tensão, IP, etc).
-- [ ] Front-end renderiza a resposta da API ao invés do mock.
-- [ ] Nenhuma chave de API hardcoded no código do endpoint.
-- [ ] Teste unitário do endpoint verde.
+- [ ] OCR local extrai texto da imagem e estrutura nos 9 campos esperados, sem chamar nenhuma API externa.
+- [ ] Campo não reconhecido no texto detectado vira `"Não legível"`, nunca um valor inventado.
+- [ ] `confianca` reflete a confiança real das detecções do EasyOCR, não um valor fixo/simulado.
+- [ ] Front-end continua renderizando a resposta real (sem regressão da execução anterior).
+- [ ] Zero dependência de chave de API para esta feature especificamente.
+- [ ] Testes unitários da função de estruturação (heurística) cobrindo os 3 cenários do passo 5, mais os testes de contrato do endpoint (415/413/sucesso), todos verdes.
 
 # 7. Como verificar (uso do revisor)
-- Revisar o código Python do Langchain de Vision.
-- Checar se `Vision.tsx` não quebrou estilização original.
+- `git diff --stat` → confirma `llm_vision.py` removido, nada em `config.py`/`digital_twin_core`/`asset_manager/web`.
+- Ler a função de estruturação e confirmar que é pura (sem I/O) e testável sem depender do modelo do EasyOCR carregado.
+- Rodar a suíte de testes e ler a saída real.
+- Se houver como rodar localmente com uma imagem de teste real (o próprio revisor pode tentar, já que agora não depende de crédito de API), tentar uma leitura fim-a-fim.
 
 # 8. Destino da síntese
 **Destino:** `specs/04-vision-ocr.md`
+Documentar a decisão de OCR local (não LLM) e o porquê (custo zero, sem dependência de rede),
+substituindo qualquer menção a OpenRouter/LLM multimodal nesta feature específica.
 
 ---
 # 9. Resumo da execução

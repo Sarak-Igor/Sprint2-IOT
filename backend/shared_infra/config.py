@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     )
     openrouter_model: str = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
+    # Base de Conhecimento (RAG) — PDFs e vetor-store 100% locais (decisão do usuário,
+    # 2026-08-22: sem depender de rede externa/Cloudflare R2 aqui, ver 00-contexto.md §8)
+    knowledge_storage_path: str = os.getenv(
+        "KNOWLEDGE_STORAGE_PATH",
+        str(ROOT_DIR / "backend" / "apps" / "ai_knowledge" / "storage"),
+    )
+
     @property
     def specs(self) -> MotorTechnicalSpecs:
         """

@@ -1,0 +1,11 @@
+# RAG local (embeddings via função padrão do ChromaDB, resposta via OpenRouter/LangChain).
+# Instalado hoje na raiz do projeto (requirements.txt); listado aqui como documentação do
+# módulo, seguindo o mesmo padrão dos demais backend/apps/*/requirements.txt.
+fastapi>=0.110.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+langchain-openai>=0.1.0
+langchain-text-splitters>=0.2.0
+chromadb>=0.5.0
+pypdf>=4.0.0
+python-multipart>=0.0.9

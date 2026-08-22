@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.apps.asset_manager.web.router import router as asset_router
 from backend.apps.asset_manager.vision.router import router as vision_router
+from backend.apps.ai_knowledge.router import router as knowledge_router
 from backend.shared_infra.database_client import AsyncSessionLocal
 from backend.apps.asset_manager.infrastructure.models import (
     TelemetryMappingDB,
@@ -34,6 +35,7 @@ from typing import List
 app = FastAPI()
 app.include_router(asset_router, prefix="/api")
 app.include_router(vision_router, prefix="/api")
+app.include_router(knowledge_router, prefix="/api")
 
 
 @app.middleware("http")

@@ -16,6 +16,9 @@ __pycache__/
 .vscode/.pxt/
 iot_firmware/.pio/
 
+# Base de Conhecimento (RAG) — PDFs e vetor-store gerados localmente, nunca versionados
+backend/apps/ai_knowledge/storage/
+
 # Documentos grandes (Opcional, mas PDFs costumam ficar fora se forem muito pesados)
 # WEG-*.pdf
 

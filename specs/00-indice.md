@@ -56,14 +56,13 @@ final, que apaga a própria plan.**
 | # | Plan | Objetivo | Depende de | Status | Destino |
 |---|---|---|---|---|---|
 | 1 | [plan-01-iot-ingestion](plan/plan-01-iot-ingestion.md) | Migrar produtor de telemetria do Mock Python para ESP32 real — código pronto e testado (24+3 testes verificados por mim), falta só o dono validar no Wokwi/hardware o "Requisito de Ouro" (slider→ESP32 sem reboot) | plan-11-caracterizar-legado-telemetria 🟢 | 🟣 Verificação do dono | specs/02-ingestion-service.md |
-| 2 | [plan-03-vision-ocr](plan/plan-03-vision-ocr.md) | Visão Computacional OCR — código pronto e testado (31 testes verificados por mim), falta só o dono validar com chave real + foto de placa que o OCR lê corretamente | plan-02-catalog-intelligence 🟢 | 🟣 Verificação do dono | specs/04-vision-ocr.md |
-| 3 | [plan-04-knowledge-rag](plan/plan-04-knowledge-rag.md) | Implementar RAG na Knowledge Base | — | 🔴 A executar | specs/05-ai-knowledge.md |
-| 4 | [plan-05-limpeza-digital-twin-core](plan/plan-05-limpeza-digital-twin-core.md) | Remover código órfão de `digital_twin_core` e reconciliar listener MQTT duplicado | — | 🔴 A executar | arquitetura/02-backend-eda.md |
-| 5 | [plan-06-alerta-telegram-backend](plan/plan-06-alerta-telegram-backend.md) | Mover o gatilho do alerta Telegram do frontend para `persistence_handler.py` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/specs/02-notificacao-telegram.md · specs/01-digital-twin-core.md |
-| 6 | [plan-07-telemetry-tempo-real](plan/plan-07-telemetry-tempo-real.md) | Ligar a aba Telemetria ao WebSocket real | — | 🔴 A executar | — |
-| 7 | [plan-08-anomalias-marcar-lido](plan/plan-08-anomalias-marcar-lido.md) | Implementar resolução de anomalias e filtro em Anomalies | — | 🔴 A executar | specs/03-asset-manager.md |
-| 8 | [plan-09-catalogs-novo-item](plan/plan-09-catalogs-novo-item.md) | Implementar formulário de criação de item em Catalogs | — | 🔴 A executar | specs/03-asset-manager.md |
-| 9 | [plan-10-history-filtros-export](plan/plan-10-history-filtros-export.md) | Implementar filtros e exportação CSV em History | — | 🔴 A executar | — |
+| 2 | [plan-03-vision-ocr](plan/plan-03-vision-ocr.md) | **Revisada 2026-08-22** — trocar a leitura da placa de LLM multimodal (OpenRouter) para OCR 100% local (EasyOCR), decisão do usuário; a implementação LLM anterior será removida | — | 🔴 A executar | specs/04-vision-ocr.md |
+| 3 | [plan-05-limpeza-digital-twin-core](plan/plan-05-limpeza-digital-twin-core.md) | Remover código órfão de `digital_twin_core` e reconciliar listener MQTT duplicado | — | 🔴 A executar | arquitetura/02-backend-eda.md |
+| 4 | [plan-06-alerta-telegram-backend](plan/plan-06-alerta-telegram-backend.md) | Mover o gatilho do alerta Telegram do frontend para `persistence_handler.py` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/specs/02-notificacao-telegram.md · specs/01-digital-twin-core.md |
+| 5 | [plan-07-telemetry-tempo-real](plan/plan-07-telemetry-tempo-real.md) | Ligar a aba Telemetria ao WebSocket real | — | 🔴 A executar | — |
+| 6 | [plan-08-anomalias-marcar-lido](plan/plan-08-anomalias-marcar-lido.md) | Implementar resolução de anomalias e filtro em Anomalies | — | 🔴 A executar | specs/03-asset-manager.md |
+| 7 | [plan-09-catalogs-novo-item](plan/plan-09-catalogs-novo-item.md) | Implementar formulário de criação de item em Catalogs | — | 🔴 A executar | specs/03-asset-manager.md |
+| 8 | [plan-10-history-filtros-export](plan/plan-10-history-filtros-export.md) | Implementar filtros e exportação CSV em History | — | 🔴 A executar | — |
 
 ---
 
@@ -131,6 +130,7 @@ Toda plan declara, **desde o momento em que é escrita**, para onde seu conteúd
 |---|---|---|---|
 | [plan-11-caracterizar-legado-telemetria](plan/executadas/plan-11-caracterizar-legado-telemetria.md) | 🟢 | 2026-08-22 | specs/01-digital-twin-core.md · specs/02-ingestion-service.md |
 | [plan-02-catalog-intelligence](plan/executadas/plan-02-catalog-intelligence.md) | 🟢 | 2026-08-22 | specs/03-asset-manager.md |
+| [plan-04-knowledge-rag](plan/executadas/plan-04-knowledge-rag.md) | 🟢 | 2026-08-22 | specs/05-ai-knowledge.md |
 
 > Exemplo de linha, enquanto aguarda síntese:
 > `| [plan-05-tabela-sessions](plan/executadas/plan-05-tabela-sessions.md) | 🟢 | 2026-07-28 | arquitetura/04-dados.md · adr/003-jwt-vs-sessao.md |`
