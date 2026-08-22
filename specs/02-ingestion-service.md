@@ -22,5 +22,5 @@ Gateway de entrada que simula (Mock) ou facilita a conexão do tráfego MQTT pro
 
 # 4. Plano de Testes (Quality Gate)
 ## Testes Unitários
-- [ ] **Deve** manter o script rodando sem gerar mensagens se `MOCK_ENABLED == false`.
-- [ ] **Deve** conectar no MQTT e iniciar o loop assíncrono se `MOCK_ENABLED == true`.
+- [x] **Deve** manter o script rodando sem gerar mensagens se `MOCK_ENABLED == false`.
+- [x] **Deve** conectar no MQTT e iniciar o loop assíncrono se `MOCK_ENABLED == true`.

@@ -85,7 +85,12 @@ O repositório **Forzy | Industrial Intelligence** é o ecossistema de software 
   - `backend/apps/ai_knowledge` (Domain): Motor RAG.
   - `backend/apps/asset_manager` (Domain): Gestão dos ativos físicos.
   - `frontend` (Connector): UI Soberana que agrega as respostas dos backends em dashboards visuais.
-  - `iot_firmware` (Edge): Código microcontrolador que interage via hardware.
+  - `iot_firmware` (Edge): Código microcontrolador que interage via hardware. Já contém esqueleto PlatformIO
+    (`platformio.ini`, `include/config.h`, `src/main.cpp`) — não parte do zero.
+  - `api/index.py` (Gateway HTTP real, fora de `backend/apps/`): função serverless (formato Vercel) na raiz do
+    repo. É quem de fato atende `/api/*` consumido pelo frontend (assets, telemetry, config, alertas
+    Telegram, manuais, WebSocket) — monta o router do `asset_manager` e implementa rotas adicionais direto
+    nela. Nenhuma spec fixa descrevia este arquivo até 2026-08-22; ver §8.
 - **Fronteiras:** O frontend é passivo e nunca assume regras de negócio das máquinas (delega ao backend). Integrações entre as partes do backend acontecem através de importações isoladas, porém todas buscam o `shared_infra` para configs.
 - **Comandos vitais:**
   - **Subir ecossistema em Windows:** `.\RUN_FORZY.bat`
@@ -193,9 +198,47 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
 > (`2026-07-31`, nunca "semana passada"). Item resolvido sai daqui — esta seção não é histórico; o histórico
 > é o `git` e os `adr/`.
 
-- **2026-08-17:** A funcionalidade de login/autenticação está bloqueada/postergada. Não tente implementar middleware JWT agora.
-- **2026-08-17:** A API conta com recursos de Visão Computacional engatilhados (`/vision/stats`), porém eles ainda rodam no MOCK aguardando a implementação do hardware de câmeras na Sprint 2.
-- **2026-08-17:** Não existe CI/CD ou pipeline de deploy na nuvem ativo, o projeto roda majoritariamente via script local e `docker-compose`.
+- **2026-08-17:** A funcionalidade de login/autenticação está bloqueada/postergada (`adr/003-autenticacao.md`).
+  Não tente implementar middleware JWT — decisão fechada, sem plan associada, não revisitar sem pedido explícito.
+- **2026-08-17:** Não existe CI/CD ou pipeline de deploy na nuvem ativo (`adr/004-infra-deploy.md`), o projeto
+  roda majoritariamente via script local e `docker-compose`. Decisão fechada, sem plan associada.
+- **2026-08-22:** `digital_twin_core/persistence_handler.py` (não `main.py`) é o processo real que ouve MQTT e
+  grava anomalias; o gateway HTTP consumido pelo frontend é `api/index.py` + `asset_manager`. Corrigido em
+  `arquitetura/02-backend-eda.md` e `specs/01-digital-twin-core.md`. `persistence_handler.py` é o núcleo do
+  sistema (confirmado com o usuário) — a origem dos dados (mock hoje, Wokwi/PlatformIO depois) é só a camada
+  de adaptador.
+- **2026-08-22:** `docs/PLANEJAMENTO.md` (fora de `specs/`) propunha migrar o consumo MQTT→Postgres para
+  Node-RED — **decisão fechada com o usuário: descartada**. O fluxo permanece em Python; só a camada de
+  **produção** de dados muda (mock → Wokwi/PlatformIO/ESP32), via `plan-01`. `docs/PLANEJAMENTO.md` ficou
+  desatualizado nos itens 1-2; não editado por mim (fora de `specs/`, fora da minha autoridade direta).
+- **2026-08-22:** `/vision/stats` (endpoint de `digital_twin_core/main.py`) está confirmado por grep como não
+  chamado em nenhum lugar do frontend — a antiga pendência de "aguardar hardware de câmera" para esse endpoint
+  específico não se aplica mais; ele é código órfão coberto pela remoção da `plan-05`, não por uma feature a
+  construir. A visão computacional de verdade (leitura de placa por foto) é escopo da `plan-03`.
+
+## Pendências cobertas pela fila ativa (ver `00-indice.md` para status corrente)
+- Código órfão em `digital_twin_core` (`main.py`, `anomaly_logger.py`, `converters/metric_converter.py`) e o
+  listener MQTT duplicado em `api/index.py:282-358` → `plan-05`.
+- `ai_knowledge` sem nenhum código-fonte (RAG/OCR 100% a implementar) → `plan-04`.
+- Botões de UI sem handler ("Marcar como Lido"/filtro em `Anomalies.tsx`, "Novo Item" em `Catalogs.tsx`,
+  "Filtros"/"Exportar CSV" em `History.tsx`, `Telemetry.tsx` 100% estático) → `plan-08`, `plan-09`, `plan-10`,
+  `plan-07`, respectivamente.
+- Alerta Telegram disparado só quando o Dashboard está aberto no navegador (viola Frontend Soberano, §7) →
+  `plan-06`.
+- `specs/specs/02-notificacao-telegram.md` corrigida (sem Node-RED) e `specs/specs/03-migracao-simulador-esp32.md`
+  absorvida por `plan-01` — sem sobreposição remanescente.
+
+## Fechado — aceito como está, sem plan (2026-08-22)
+- **`frontend/src/pages/simulator/FlowSimulator.tsx`** (10ª aba, registrada como `simulator` em `main.tsx`,
+  não coberta pelo diagnóstico inicial): diagrama de arquitetura animado já funcional, consome `/api/config` e
+  `/api/ws/telemetry` de verdade. Tem uma comparação de threshold hardcoded (`:61-64`, valores `90`/`75`) só
+  para decidir qual nó do diagrama acende — mesma família do achado corrigido pela `plan-06` em
+  `Dashboard.tsx`, mas sem side-effect de rede (não dispara nada, é puramente cosmético). **Decisão: aceito
+  como débito técnico de baixo risco, não entra em plan.** Reabrir só sob pedido explícito.
+- **2026-08-22:** Confirmado por grep: `/vision/stats` (endpoint órfão de `digital_twin_core/main.py`,
+  candidato a remoção pela `plan-05`) **não é chamado em nenhum lugar do frontend** — a pendência de
+  2026-08-17 sobre esse endpoint aguardar hardware de câmera fica sem efeito prático assim que a `plan-05` for
+  executada.
 
 ---
 

@@ -5,7 +5,7 @@ dominio: "Governança de Specs (SDD)"
 status: "🟢 Vigente"
 tags: ["processo", "indice", "sdd"]
 relacionados: ["[[00-contexto]]", "[[00-prompt-revisor]]", "[[00-prompt-executor]]"]
-proximo_numero_plan: "05" # NN da próxima plan a nascer. Só sobe. Nunca reaproveitado, mesmo que uma plan
+proximo_numero_plan: "12" # NN da próxima plan a nascer. Só sobe. Nunca reaproveitado, mesmo que uma plan
                            # seja depois removida por síntese — ver §5.
 ---
 
@@ -55,10 +55,16 @@ final, que apaga a própria plan.**
 
 | # | Plan | Objetivo | Depende de | Status | Destino |
 |---|---|---|---|---|---|
-| 1 | [plan-01-iot-ingestion](plan/plan-01-iot-ingestion.md) | Acoplar ingestão MQTT a simuladores reais | — | 🔴 A executar | specs/02-ingestion-service.md |
+| 1 | [plan-01-iot-ingestion](plan/plan-01-iot-ingestion.md) | Migrar produtor de telemetria do Mock Python para ESP32 real (Wokwi/PlatformIO) — absorve `specs/specs/03-migracao-simulador-esp32.md` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/02-ingestion-service.md |
 | 2 | [plan-02-catalog-intelligence](plan/plan-02-catalog-intelligence.md) | Inteligência de Catálogo de Ativos com LLM | — | 🔴 A executar | specs/03-asset-manager.md |
 | 3 | [plan-03-vision-ocr](plan/plan-03-vision-ocr.md) | Implementar Visão Computacional OCR para Placas | plan-02-catalog-intelligence | 🔴 A executar | specs/04-vision-ocr.md |
 | 4 | [plan-04-knowledge-rag](plan/plan-04-knowledge-rag.md) | Implementar RAG na Knowledge Base | — | 🔴 A executar | specs/05-ai-knowledge.md |
+| 5 | [plan-05-limpeza-digital-twin-core](plan/plan-05-limpeza-digital-twin-core.md) | Remover código órfão de `digital_twin_core` e reconciliar listener MQTT duplicado | — | 🔴 A executar | arquitetura/02-backend-eda.md |
+| 6 | [plan-06-alerta-telegram-backend](plan/plan-06-alerta-telegram-backend.md) | Mover o gatilho do alerta Telegram do frontend para `persistence_handler.py` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/specs/02-notificacao-telegram.md · specs/01-digital-twin-core.md |
+| 7 | [plan-07-telemetry-tempo-real](plan/plan-07-telemetry-tempo-real.md) | Ligar a aba Telemetria ao WebSocket real | — | 🔴 A executar | — |
+| 8 | [plan-08-anomalias-marcar-lido](plan/plan-08-anomalias-marcar-lido.md) | Implementar resolução de anomalias e filtro em Anomalies | — | 🔴 A executar | specs/03-asset-manager.md |
+| 9 | [plan-09-catalogs-novo-item](plan/plan-09-catalogs-novo-item.md) | Implementar formulário de criação de item em Catalogs | — | 🔴 A executar | specs/03-asset-manager.md |
+| 10 | [plan-10-history-filtros-export](plan/plan-10-history-filtros-export.md) | Implementar filtros e exportação CSV em History | — | 🔴 A executar | — |
 
 ---
 
@@ -119,7 +125,7 @@ Toda plan declara, **desde o momento em que é escrita**, para onde seu conteúd
 
 | Plan | Status | Aprovada em | Destino declarado |
 |---|---|---|---|
-| — | — | — | — |
+| [plan-11-caracterizar-legado-telemetria](plan/executadas/plan-11-caracterizar-legado-telemetria.md) | 🟢 | 2026-08-22 | specs/01-digital-twin-core.md · specs/02-ingestion-service.md |
 
 > Exemplo de linha, enquanto aguarda síntese:
 > `| [plan-05-tabela-sessions](plan/executadas/plan-05-tabela-sessions.md) | 🟢 | 2026-07-28 | arquitetura/04-dados.md · adr/003-jwt-vs-sessao.md |`

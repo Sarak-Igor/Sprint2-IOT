@@ -23,3 +23,11 @@ Fluxo de dados da telemetria:
 3. A mensagem é resolvida contra a tabela `TelemetryMappingDB` para encontrar o id da variável e ativo.
 4. O valor lido é comparado contra os parâmetros estruturais do motor lidos do JSON local (`settings.specs`).
 5. Se uma anomalia for detectada, é gerada uma notificação e salva no PostgreSQL assíncrono.
+
+> **Correção (2026-08-22):** `MqttPersistenceHandler` roda em `backend/apps/digital_twin_core/persistence_handler.py`,
+> como **processo standalone** (subido por `RUN_FORZY.bat`, fora de Docker/produção) — não é o mesmo processo
+> que atende `/api/*`. O gateway HTTP consumido pelo frontend é `api/index.py` (raiz, fora de
+> `backend/apps/`), que monta o router de `asset_manager`. Esse gateway roda um **segundo listener MQTT
+> paralelo** no mesmo tópico `Forzy/telemetry/#` (`api/index.py:282-358`) só para broadcast via WebSocket — não
+> persiste nada, não cria anomalia. Os dois processos duplicam a resolução de tópico de forma independente;
+> reconciliação pendente, ver `00-contexto.md §8`.

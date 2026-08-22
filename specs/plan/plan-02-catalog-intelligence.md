@@ -26,19 +26,27 @@ A aba "Assets" atualmente só lista e deleta. Precisamos da capacidade de inputa
 # 4. Referências obrigatórias
 | Tipo | Referência | Por quê |
 |---|---|---|
-| Contexto | `00-contexto.md` · `00-knowledge.md` | sempre |
-| Skill | `cyber-ia` | segurança na chamada ao LLM |
+| Contexto | `00-contexto.md` (Fail-Fast de Configurações, §2) · `00-knowledge.md` | sempre |
+| Skill | `cyber-ia` | segurança na chamada ao LLM (prompt injection via texto livre do usuário) |
 | Skill | `padrao-python` + `padrao-typescript` | regras base |
+| Skill | `test-unitario` | Cobrir o endpoint novo (mock da chamada ao LLM, não da rota) |
+| Código | `backend/shared_infra/config.py` | onde a chave da API do LLM deve ser lida via Pydantic — nunca hardcoded |
 
 # 5. Instruções de execução
-1. Criar o endpoint `POST /api/assets` no `asset_manager` acoplado ao LangChain (OpenRouter).
-2. O prompt de LLM deve deduzir informações do motor a partir de marca/modelo ou texto livre.
-3. No Frontend, adicionar botão "Novo Ativo" e modal em `Assets.tsx`.
+1. Adicionar a variável da chave de API do LLM (ex.: `OPENROUTER_API_KEY`) em `backend/shared_infra/config.py`
+   via `pydantic-settings`, com entrada correspondente em `.env.example` — Fail-Fast, zero valor inferido ou
+   hardcoded (`00-contexto.md §2`).
+2. Criar o endpoint `POST /api/assets` no `asset_manager` acoplado ao LangChain (OpenRouter).
+3. O prompt de LLM deve deduzir informações do motor a partir de marca/modelo ou texto livre.
+4. No Frontend, adicionar botão "Novo Ativo" e modal em `Assets.tsx`.
+5. Escrever teste unitário do endpoint com a chamada ao LLM mockada (não gastar chamada real em CI).
 
 # 6. Critérios de aceite
+- [ ] Chave de API do LLM configurada via `shared_infra/config.py`/`.env`, sem valor hardcoded.
 - [ ] Cadastro no Frontend chama o Backend.
 - [ ] Backend chama OpenRouter e processa payload.
 - [ ] Ativo é salvo na tabela e listado.
+- [ ] Teste unitário do endpoint verde.
 
 # 7. Como verificar (uso do revisor)
 - Avaliar os arquivos tocados (só frontend e asset_manager).

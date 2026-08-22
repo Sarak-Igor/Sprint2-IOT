@@ -26,18 +26,26 @@ A aba de Visão Computacional tem UI belíssima, mas a função `simulateScan` r
 # 4. Referências obrigatórias
 | Tipo | Referência | Por quê |
 |---|---|---|
-| Contexto | `00-contexto.md` · `00-knowledge.md` | sempre |
-| Skill | `cyber-ia` | proteção de injeção na visão |
+| Contexto | `00-contexto.md` (Fail-Fast de Configurações, §2) · `00-knowledge.md` | sempre |
+| Skill | `cyber-ia` | proteção de injeção na visão (imagem/texto adversarial) |
 | Skill | `padrao-python` + `padrao-typescript` | regras base |
+| Skill | `test-unitario` | Cobrir o endpoint novo (mock da chamada multimodal) |
+| Código | `backend/shared_infra/config.py` | onde a chave da API do LLM multimodal deve ser lida via Pydantic |
 
 # 5. Instruções de execução
-1. Substituir o json hardcoded no frontend por requisição POST para `/api/vision/scan`.
-2. No Backend, receber o upload e disparar requisição para OpenRouter multimodal (ex: GPT-4o ou Claude 3).
-3. Retornar JSON estruturado validado via Pydantic.
+1. Confirmar que a variável de chave de API do LLM (mesma de `plan-02`, se `plan-02` já tiver sido executada;
+   caso contrário, adicionar em `backend/shared_infra/config.py` seguindo o mesmo padrão) está disponível —
+   nunca hardcoded.
+2. Substituir o json hardcoded no frontend por requisição POST para `/api/vision/scan`.
+3. No Backend, receber o upload e disparar requisição para OpenRouter multimodal (ex: GPT-4o ou Claude 3).
+4. Retornar JSON estruturado validado via Pydantic.
+5. Escrever teste unitário do endpoint com a chamada multimodal mockada.
 
 # 6. Critérios de aceite
 - [ ] OCR devolve campos corretos da placa (rpm, tensão, IP, etc).
 - [ ] Front-end renderiza a resposta da API ao invés do mock.
+- [ ] Nenhuma chave de API hardcoded no código do endpoint.
+- [ ] Teste unitário do endpoint verde.
 
 # 7. Como verificar (uso do revisor)
 - Revisar o código Python do Langchain de Vision.
