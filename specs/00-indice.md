@@ -5,7 +5,7 @@ dominio: "Governança de Specs (SDD)"
 status: "🟢 Vigente"
 tags: ["processo", "indice", "sdd"]
 relacionados: ["[[00-contexto]]", "[[00-prompt-revisor]]", "[[00-prompt-executor]]"]
-proximo_numero_plan: "01" # NN da próxima plan a nascer. Só sobe. Nunca reaproveitado, mesmo que uma plan
+proximo_numero_plan: "05" # NN da próxima plan a nascer. Só sobe. Nunca reaproveitado, mesmo que uma plan
                            # seja depois removida por síntese — ver §5.
 ---
 
@@ -55,7 +55,10 @@ final, que apaga a própria plan.**
 
 | # | Plan | Objetivo | Depende de | Status | Destino |
 |---|---|---|---|---|---|
-| — | _(vazio — a primeira plan do repositório é preencher [[00-contexto]])_ | — | — | — | — |
+| 1 | [plan-01-iot-ingestion](plan/plan-01-iot-ingestion.md) | Acoplar ingestão MQTT a simuladores reais | — | 🔴 A executar | specs/02-ingestion-service.md |
+| 2 | [plan-02-catalog-intelligence](plan/plan-02-catalog-intelligence.md) | Inteligência de Catálogo de Ativos com LLM | — | 🔴 A executar | specs/03-asset-manager.md |
+| 3 | [plan-03-vision-ocr](plan/plan-03-vision-ocr.md) | Implementar Visão Computacional OCR para Placas | plan-02-catalog-intelligence | 🔴 A executar | specs/04-vision-ocr.md |
+| 4 | [plan-04-knowledge-rag](plan/plan-04-knowledge-rag.md) | Implementar RAG na Knowledge Base | — | 🔴 A executar | specs/05-ai-knowledge.md |
 
 ---
 

@@ -31,7 +31,7 @@ inegociável ou o mapa de roteamento. Nunca por conta própria fora de uma plan.
 > agentes) e **o que ele explicitamente NÃO é**. Sem marketing, sem histórico. Um agente lê isto e para de
 > supor. Proibido descrever a estrutura de pastas aqui — isso é da §3.
 
-<!-- PREENCHER -->
+O repositório **Forzy | Industrial Intelligence** é o ecossistema de software de um Gêmeo Digital (Digital Twin) e monitoramento preditivo para motores elétricos industriais (Challenge FIAP). Ele consome dados de hardware na ponta (IoT Firmware no ESP32), processa-os e exibe tudo numa interface de altíssima fidelidade voltada para operadores e gestores de manutenção. **Não é um simples dashboard monolítico**, mas uma arquitetura baseada em eventos (EDA) que abstrai rigorosamente as especificações de hardware através de perfis JSON carregados em tempo de execução.
 
 ---
 
@@ -51,7 +51,10 @@ inegociável ou o mapa de roteamento. Nunca por conta própria fora de uma plan.
 > **Regra de ouro: referencie, nunca duplique.** Se uma regra já está numa spec fixa ou numa skill, escreva
 > uma linha e o ponteiro. Conteúdo duplicado desatualiza e passa a mentir.
 
-<!-- PREENCHER -->
+- **Universais do ecossistema:** Aja guiado pelo `CLAUDE.md` raiz (limiares curtos, responsabilidade única, segredos nunca expostos, etc).
+- **Soberania do Frontend e UI Core:** A interface delega sua renderização principal à biblioteca `@sarak/lib-ui-core`. NUNCA recrie ou altere componentes puramente visuais da base no repositório. Toda atualização do design system vem de bump no GitHub Hash no `package.json`.
+- **Zero-Hardcode Industrial:** Nenhuma métrica ou característica do motor (RPM nominal, tolerância a vibração, eficiência) pode estar hardcoded nos arquivos `.py` ou `.ts`. Obtenha esses dados estritamente via `settings.specs` derivados dos JSONs em `backend/device_profiles/`.
+- **Fail-Fast de Configurações:** Dependências externas (Broker, DB) são injetadas exclusivamente através do Pydantic (`backend/shared_infra/config.py`). Nada é inferido ocultamente.
 
 ---
 
@@ -72,7 +75,22 @@ inegociável ou o mapa de roteamento. Nunca por conta própria fora de uma plan.
 >
 > Cada item aponta para a spec fixa em `arquitetura/` que o detalha. Esta seção é o índice, não o tratado.
 
-<!-- PREENCHER -->
+- **Stack e Padrão (`padrao-python` / `padrao-typescript`):**
+  - Backend: Python 3.10+ (FastAPI, SQLAlchemy Async, LangChain).
+  - Frontend: React 18+ com TypeScript e Vite. ECharts para BI. TailwindCSS.
+  - Dados: NeonDB PostgreSQL, Mosquitto MQTT, OPC UA.
+- **Mapa de Domínios:**
+  - `backend/apps/ingestion_service` (Gateway): Porta de entrada crua de dados MQTT/OPC UA para a plataforma.
+  - `backend/apps/digital_twin_core` (Domain): Processa anomalias em tempo real e orquestra acesso a dados.
+  - `backend/apps/ai_knowledge` (Domain): Motor RAG.
+  - `backend/apps/asset_manager` (Domain): Gestão dos ativos físicos.
+  - `frontend` (Connector): UI Soberana que agrega as respostas dos backends em dashboards visuais.
+  - `iot_firmware` (Edge): Código microcontrolador que interage via hardware.
+- **Fronteiras:** O frontend é passivo e nunca assume regras de negócio das máquinas (delega ao backend). Integrações entre as partes do backend acontecem através de importações isoladas, porém todas buscam o `shared_infra` para configs.
+- **Comandos vitais:**
+  - **Subir ecossistema em Windows:** `.\RUN_FORZY.bat`
+  - **Subir infra Docker (MQTT, etc):** `docker-compose up -d`
+  - **Rodar Frontend Isolado:** `cd frontend && npm install && npm run dev`
 
 ---
 
@@ -95,7 +113,14 @@ inegociável ou o mapa de roteamento. Nunca por conta própria fora de uma plan.
 > Mantenha entre 6 e 15 linhas. Se passar disso, o repositório precisa de specs melhores, não de mais linhas
 > aqui. **Ponteiro órfão é defeito**: toda spec citada tem de existir.
 
-<!-- PREENCHER -->
+| Tipo de tarefa | Leia antes (specs fixas) | Capacidade |
+|---|---|---|
+| Mudar interface/páginas web do Forzy | `adr/001-stack-principal.md` | [[00-knowledge]] |
+| Alterar métricas base, limiares ou processamento do Twin | `adr/001-stack-principal.md` | [[00-knowledge]] |
+| Ajustar perfis técnicos / especificações de motor (hardware) | (Diretório físico: `backend/device_profiles/`) | [[00-knowledge]] |
+| Adicionar entidades de Banco ou Repositórios SQLAlchemy | `adr/002-banco-de-dados.md` | [[00-knowledge]] |
+| Integrar novo serviço MQTT / IoT | `adr/005-integracoes-iniciais.md` | [[00-knowledge]] |
+| Pivotar decisões globais da arquitetura | `arquitetura/00-fundacao-tecnologica.md` | [[00-knowledge]] |
 
 ---
 
@@ -133,7 +158,7 @@ a spec fixa passa a ser a única fonte viva dessa verdade
 | **Executor** | [[00-prompt-executor]] | código + resumo na própria plan | criar/alterar outras specs · commitar |
 | **Usuário** | — | qualquer coisa | — (é quem commita e dispara `/spec-atualizar`) |
 
-<!-- PREENCHER: desvios específicos deste repositório, se houver -->
+- **Desvio Arquitetural Sarak:** Embora utilize o ciclo SDD rigoroso e as specs base, este repositório não adotou a divisão de pacotes por `packages/` ou `adapters/` via CLI. Ele possui backend e frontend estruturados na raiz. Respeite esta divisão existente.
 
 ---
 
@@ -155,7 +180,9 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
 > tipo de item: diretórios gerados que não se editam à mão; arquivos que só o usuário altera; operações
 > irreversíveis que exigem confirmação; integrações que não podem ser chamadas em desenvolvimento.
 
-<!-- PREENCHER -->
+- **Nunca altere a lib UI externa diretamente no código fonte do projeto:** O sistema é agnóstico em UI, buscando de `@sarak/lib-ui-core` no github. Faça a correção no repo da UI e depois de bump aqui.
+- **Nunca coloque senhas e tokens da NeonDB ou Cloudflare no código em formato string literal:** A segurança depende de que o Pydantic puxe de `os.getenv` exclusivamente pelo `.env`.
+- **Nunca insira regras de validação ou inferência baseada no nome do "Motor" dentro da UI:** O frontend não deve "saber" sobre os detalhes físicos da máquina, apenas desenhar o que o Gateway lhe der.
 
 ---
 
@@ -166,7 +193,9 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
 > (`2026-07-31`, nunca "semana passada"). Item resolvido sai daqui — esta seção não é histórico; o histórico
 > é o `git` e os `adr/`.
 
-<!-- PREENCHER -->
+- **2026-08-17:** A funcionalidade de login/autenticação está bloqueada/postergada. Não tente implementar middleware JWT agora.
+- **2026-08-17:** A API conta com recursos de Visão Computacional engatilhados (`/vision/stats`), porém eles ainda rodam no MOCK aguardando a implementação do hardware de câmeras na Sprint 2.
+- **2026-08-17:** Não existe CI/CD ou pipeline de deploy na nuvem ativo, o projeto roda majoritariamente via script local e `docker-compose`.
 
 ---
 
