@@ -17,6 +17,9 @@ asyncua>=0.9.0
 paho-mqtt>=2.0.0
 aiohttp>=3.9.0
 
+# --- Upload de arquivos (FastAPI UploadFile/File — POST /api/vision/scan) ---
+python-multipart>=0.0.9
+
 # --- Visão Computacional e OCR (Preparação Sprint 2) ---
 opencv-python-headless>=4.9.0
 easyocr>=1.7.0

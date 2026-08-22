@@ -55,16 +55,15 @@ final, que apaga a própria plan.**
 
 | # | Plan | Objetivo | Depende de | Status | Destino |
 |---|---|---|---|---|---|
-| 1 | [plan-01-iot-ingestion](plan/plan-01-iot-ingestion.md) | Migrar produtor de telemetria do Mock Python para ESP32 real (Wokwi/PlatformIO) — absorve `specs/specs/03-migracao-simulador-esp32.md` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/02-ingestion-service.md |
-| 2 | [plan-02-catalog-intelligence](plan/plan-02-catalog-intelligence.md) | Inteligência de Catálogo de Ativos com LLM | — | 🔴 A executar | specs/03-asset-manager.md |
-| 3 | [plan-03-vision-ocr](plan/plan-03-vision-ocr.md) | Implementar Visão Computacional OCR para Placas | plan-02-catalog-intelligence | 🔴 A executar | specs/04-vision-ocr.md |
-| 4 | [plan-04-knowledge-rag](plan/plan-04-knowledge-rag.md) | Implementar RAG na Knowledge Base | — | 🔴 A executar | specs/05-ai-knowledge.md |
-| 5 | [plan-05-limpeza-digital-twin-core](plan/plan-05-limpeza-digital-twin-core.md) | Remover código órfão de `digital_twin_core` e reconciliar listener MQTT duplicado | — | 🔴 A executar | arquitetura/02-backend-eda.md |
-| 6 | [plan-06-alerta-telegram-backend](plan/plan-06-alerta-telegram-backend.md) | Mover o gatilho do alerta Telegram do frontend para `persistence_handler.py` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/specs/02-notificacao-telegram.md · specs/01-digital-twin-core.md |
-| 7 | [plan-07-telemetry-tempo-real](plan/plan-07-telemetry-tempo-real.md) | Ligar a aba Telemetria ao WebSocket real | — | 🔴 A executar | — |
-| 8 | [plan-08-anomalias-marcar-lido](plan/plan-08-anomalias-marcar-lido.md) | Implementar resolução de anomalias e filtro em Anomalies | — | 🔴 A executar | specs/03-asset-manager.md |
-| 9 | [plan-09-catalogs-novo-item](plan/plan-09-catalogs-novo-item.md) | Implementar formulário de criação de item em Catalogs | — | 🔴 A executar | specs/03-asset-manager.md |
-| 10 | [plan-10-history-filtros-export](plan/plan-10-history-filtros-export.md) | Implementar filtros e exportação CSV em History | — | 🔴 A executar | — |
+| 1 | [plan-01-iot-ingestion](plan/plan-01-iot-ingestion.md) | Migrar produtor de telemetria do Mock Python para ESP32 real — código pronto e testado (24+3 testes verificados por mim), falta só o dono validar no Wokwi/hardware o "Requisito de Ouro" (slider→ESP32 sem reboot) | plan-11-caracterizar-legado-telemetria 🟢 | 🟣 Verificação do dono | specs/02-ingestion-service.md |
+| 2 | [plan-03-vision-ocr](plan/plan-03-vision-ocr.md) | Visão Computacional OCR — código pronto e testado (31 testes verificados por mim), falta só o dono validar com chave real + foto de placa que o OCR lê corretamente | plan-02-catalog-intelligence 🟢 | 🟣 Verificação do dono | specs/04-vision-ocr.md |
+| 3 | [plan-04-knowledge-rag](plan/plan-04-knowledge-rag.md) | Implementar RAG na Knowledge Base | — | 🔴 A executar | specs/05-ai-knowledge.md |
+| 4 | [plan-05-limpeza-digital-twin-core](plan/plan-05-limpeza-digital-twin-core.md) | Remover código órfão de `digital_twin_core` e reconciliar listener MQTT duplicado | — | 🔴 A executar | arquitetura/02-backend-eda.md |
+| 5 | [plan-06-alerta-telegram-backend](plan/plan-06-alerta-telegram-backend.md) | Mover o gatilho do alerta Telegram do frontend para `persistence_handler.py` | plan-11-caracterizar-legado-telemetria 🟢 | 🔴 A executar | specs/specs/02-notificacao-telegram.md · specs/01-digital-twin-core.md |
+| 6 | [plan-07-telemetry-tempo-real](plan/plan-07-telemetry-tempo-real.md) | Ligar a aba Telemetria ao WebSocket real | — | 🔴 A executar | — |
+| 7 | [plan-08-anomalias-marcar-lido](plan/plan-08-anomalias-marcar-lido.md) | Implementar resolução de anomalias e filtro em Anomalies | — | 🔴 A executar | specs/03-asset-manager.md |
+| 8 | [plan-09-catalogs-novo-item](plan/plan-09-catalogs-novo-item.md) | Implementar formulário de criação de item em Catalogs | — | 🔴 A executar | specs/03-asset-manager.md |
+| 9 | [plan-10-history-filtros-export](plan/plan-10-history-filtros-export.md) | Implementar filtros e exportação CSV em History | — | 🔴 A executar | — |
 
 ---
 
@@ -77,11 +76,16 @@ final, que apaga a própria plan.**
 | 🟠 Em revisão | Execução concluída no worktree, aguardando veredito. | `plan/` | executor (ao entregar) |
 | 🔵 Em correção | Reprovada. Prompt de correção emitido, executor refazendo. | `plan/` | revisor (ao reprovar) |
 | ⛔ Bloqueada | Impedida por dependência externa/decisão pendente. **Exige motivo** na coluna Objetivo. | `plan/` | revisor |
+| 🟣 Verificação do dono | Execução e verificação automática do revisor **esgotadas** (código correto, testado, nada mais que um agente alcance) — falta só validação manual do dono em ambiente que nenhum agente atinge (hardware físico, simulador visual, serviço externo interativo). **Exige o passo a passo exato** que o dono precisa fazer, escrito no veredito. | `plan/` | revisor |
 | 🟢 Aprovada | Verificada pelo revisor. Pronta para o usuário commitar e para a síntese. | **`plan/executadas/`** | revisor (ao aprovar — move o arquivo) |
 | ⚪ Sintetizada | Absorvida nas specs fixas pela skill `spec-atualizar`. Estado **transitório**: existe só no instante entre "acrescentar o bloco de síntese" e "remover o arquivo", na mesma passada — ver [[spec-atualizar]] | — (arquivo removido) | quem conduziu a síntese |
 
-> Um status só avança na ordem `🔴 → 🟡 → 🟠 → (🔵 ⇄ 🟠) → 🟢 → ⚪`. **🔵 não volta para 🔴** — correção não é
-> execução nova; a plan e o histórico de vereditos são os mesmos.
+> Um status só avança na ordem `🔴 → 🟡 → 🟠 → (🔵 ⇄ 🟠) → 🟣 → 🟢 → ⚪`. **🔵 não volta para 🔴** — correção não
+> é execução nova; a plan e o histórico de vereditos são os mesmos. **🟣 é diferente de ⛔**: ⛔ é dependência ou
+> decisão que trava o **início ou a continuação** do trabalho (nada rodou ainda, ou não pode rodar); 🟣 é
+> quando o trabalho **já rodou e já foi verificado** até o limite do que um agente alcança, e só falta o dono
+> confirmar com as próprias mãos. 🟣 volta para `🟢` (dono confirma que funcionou) ou para `🔵` (dono reporta
+> que não funcionou — vira achado real, prompt de correção).
 >
 > **A aprovação move o arquivo; a síntese o remove.** `plan/` guarda o que está em jogo; `plan/executadas/`
 > guarda só o que terminou e ainda não foi sintetizado. É isso que impede a raiz de `plan/` de virar um
@@ -126,6 +130,7 @@ Toda plan declara, **desde o momento em que é escrita**, para onde seu conteúd
 | Plan | Status | Aprovada em | Destino declarado |
 |---|---|---|---|
 | [plan-11-caracterizar-legado-telemetria](plan/executadas/plan-11-caracterizar-legado-telemetria.md) | 🟢 | 2026-08-22 | specs/01-digital-twin-core.md · specs/02-ingestion-service.md |
+| [plan-02-catalog-intelligence](plan/executadas/plan-02-catalog-intelligence.md) | 🟢 | 2026-08-22 | specs/03-asset-manager.md |
 
 > Exemplo de linha, enquanto aguarda síntese:
 > `| [plan-05-tabela-sessions](plan/executadas/plan-05-tabela-sessions.md) | 🟢 | 2026-07-28 | arquitetura/04-dados.md · adr/003-jwt-vs-sessao.md |`

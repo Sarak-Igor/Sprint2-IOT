@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "config.h"
+#include "config_parser.h"
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -11,10 +12,9 @@ int delay_interval = 2000; // Tempo inicial de medição
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   if (strcmp(topic, MQTT_CONFIG_TOPIC) == 0) {
-    StaticJsonDocument<256> doc;
-    DeserializationError error = deserializeJson(doc, payload, length);
-    if (!error && doc.containsKey("measurement_interval_ms")) {
-      delay_interval = doc["measurement_interval_ms"];
+    int new_interval;
+    if (try_parse_measurement_interval(payload, length, new_interval)) {
+      delay_interval = new_interval;
       Serial.print("Novo intervalo recebido: ");
       Serial.println(delay_interval);
     }

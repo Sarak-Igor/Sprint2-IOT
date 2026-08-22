@@ -1,28 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Camera, Upload, CheckCircle, AlertCircle, Scan, History, FileText } from 'lucide-react';
+
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const Vision = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [scanResult, setScanResult] = useState<any | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const simulateScan = () => {
+    const handleFile = async (file: File) => {
+        if (!ACCEPTED_TYPES.includes(file.type)) {
+            setError('Formato não suportado. Use JPG, PNG ou WEBP.');
+            return;
+        }
+
+        setPreviewUrl(URL.createObjectURL(file));
+        setError(null);
         setIsScanning(true);
         setScanResult(null);
-        
-        setTimeout(() => {
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/vision/scan', { method: 'POST', body: formData });
+            if (res.ok) {
+                setScanResult(await res.json());
+            } else {
+                const body = await res.json().catch(() => null);
+                setError(body?.detail || 'Não foi possível processar a imagem.');
+            }
+        } catch (e) {
+            setError('Falha de rede ao contatar o backend.');
+        } finally {
             setIsScanning(false);
-            setScanResult({
-                modelo: "W22 Super Premium",
-                potencia: "7.5 kW (10 HP)",
-                rpm: "1750",
-                carcaca: "132S",
-                tensao: "220/380/440V",
-                corrente: "25.4/14.7/12.7 A",
-                ip: "IP55",
-                classe_isol: "F (ΔT 80K)",
-                confianca: "98.4%"
-            });
-        }, 2500);
+        }
+    };
+
+    const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) handleFile(file);
+    };
+
+    const onDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files?.[0];
+        if (file) handleFile(file);
     };
 
     return (
@@ -45,7 +70,18 @@ const Vision = () => {
                     <div className="bg-theme-card border-theme p-6 rounded-theme flex flex-col gap-4">
                         <h3 className="text-xs font-black text-white/40 uppercase tracking-widest">Entrada de Imagem</h3>
                         
-                        <div className="relative aspect-video bg-black/40 rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-4 overflow-hidden group hover:border-[var(--theme-primary)] transition-all">
+                        <div
+                            onDrop={onDrop}
+                            onDragOver={(e) => e.preventDefault()}
+                            className="relative aspect-video bg-black/40 rounded-2xl border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-4 overflow-hidden group hover:border-[var(--theme-primary)] transition-all"
+                        >
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept={ACCEPTED_TYPES.join(',')}
+                                onChange={onFileInputChange}
+                                className="hidden"
+                            />
                             {isScanning && (
                                 <div className="absolute inset-0 z-10 bg-[var(--theme-primary-bg)]/20 backdrop-blur-[2px] flex flex-col items-center justify-center">
                                     <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden relative">
@@ -55,14 +91,12 @@ const Vision = () => {
                                 </div>
                             )}
 
-                            {scanResult ? (
-                                <img 
-                                    src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=800" 
+                            {previewUrl ? (
+                                <img
+                                    src={previewUrl}
                                     alt="Placa Escaneada"
                                     className="w-full h-full object-cover opacity-80"
                                     loading="lazy"
-                                    width="800"
-                                    height="450"
                                 />
                             ) : (
                                 <>
@@ -73,8 +107,8 @@ const Vision = () => {
                                         <p className="text-xs font-bold text-white/60">Arraste a foto da placa técnica</p>
                                         <p className="text-[10px] text-white/20 uppercase mt-1">Formatos: JPG, PNG, WEBP (Max 10MB)</p>
                                     </div>
-                                    <button 
-                                        onClick={simulateScan}
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
                                         className="mt-2 px-6 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black text-white uppercase tracking-widest hover:bg-white/10 transition-all"
                                     >
                                         Selecionar Arquivo
@@ -82,6 +116,12 @@ const Vision = () => {
                                 </>
                             )}
                         </div>
+
+                        {error && (
+                            <p className="text-xs text-rose-500 font-bold bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4">
+                                {error}
+                            </p>
+                        )}
                     </div>
 
                     <div className="bg-theme-card border-theme p-6 rounded-theme">
@@ -124,7 +164,7 @@ const Vision = () => {
                         {scanResult && (
                             <div className="text-right">
                                 <span className="text-[10px] font-black text-white/20 uppercase block mb-1">Confiança da IA</span>
-                                <span className="text-xl font-black text-[var(--theme-success)]">{scanResult.confianca}</span>
+                                <span className="text-xl font-black text-[var(--theme-success)]">{scanResult.confianca}%</span>
                             </div>
                         )}
                     </div>
@@ -149,8 +189,8 @@ const Vision = () => {
                             <button className="flex-1 bg-[var(--theme-primary)] text-black py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all flex items-center justify-center gap-2">
                                 <FileText size={14} /> Vincular ao Ativo
                             </button>
-                            <button 
-                                onClick={() => setScanResult(null)}
+                            <button
+                                onClick={() => { setScanResult(null); setPreviewUrl(null); setError(null); }}
                                 className="px-6 py-3 bg-white/5 text-white/60 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
                             >
                                 Novo Scan
