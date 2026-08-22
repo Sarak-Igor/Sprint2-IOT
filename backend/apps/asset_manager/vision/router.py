@@ -1,9 +1,7 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from backend.apps.asset_manager.vision.llm_vision import (
-    PlateExtractionError,
-    extract_plate_data,
-)
+from backend.apps.asset_manager.vision.ocr_engine import OcrEngineError
+from backend.apps.asset_manager.vision.plate_extraction import extract_plate_data
 from backend.apps.asset_manager.vision.schemas import PlateExtractionResult
 
 router = APIRouter(prefix="/vision", tags=["Vision OCR"])
@@ -24,6 +22,6 @@ async def scan_motor_plate(file: UploadFile = File(...)):
         raise HTTPException(status_code=413, detail="Imagem maior que 10MB")
 
     try:
-        return extract_plate_data(image_bytes, file.content_type)
-    except PlateExtractionError as exc:
+        return extract_plate_data(image_bytes)
+    except OcrEngineError as exc:
         raise HTTPException(status_code=503, detail=str(exc))

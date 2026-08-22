@@ -125,6 +125,7 @@ O repositório **Forzy | Industrial Intelligence** é o ecossistema de software 
 | Ajustar perfis técnicos / especificações de motor (hardware) | (Diretório físico: `backend/device_profiles/`) | [[00-knowledge]] |
 | Adicionar entidades de Banco ou Repositórios SQLAlchemy | `adr/002-banco-de-dados.md` | [[00-knowledge]] |
 | Integrar novo serviço MQTT / IoT | `adr/005-integracoes-iniciais.md` | [[00-knowledge]] |
+| Planejar/implementar o agente conversacional de IA | `06-agente-conversacional.md` | [[00-knowledge]] |
 | Pivotar decisões globais da arquitetura | `arquitetura/00-fundacao-tecnologica.md` | [[00-knowledge]] |
 
 ---
@@ -218,8 +219,20 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
 - **2026-08-22:** `plan-03` (Visão Computacional) pivotou de LLM multimodal (OpenRouter) para
   **OCR 100% local** (`easyocr`/`opencv-python-headless`, já declarados em `requirements.txt` sob
   "Preparação Sprint 2", nunca usados até então) — decisão do usuário, mesma linha da `plan-04`
-  (projeto roda local por padrão). A execução anterior via LLM foi descartada; a plan foi
-  reescrita e reaberta.
+  (projeto roda local por padrão). Aprovada com verificação real (executor e revisor, cada um com
+  imagem sintética própria, EasyOCR de verdade). Limitação conhecida, aceita como débito de baixo
+  risco: quando dois campos da placa caem na mesma linha detectada pelo OCR, `plate_parser.py`
+  atribui o texto ao primeiro campo da ordem de prioridade e deixa o outro como "Não legível" —
+  nunca inventa valor, só perde recall. Só uma foto real de placa revela se isso é comum na
+  prática; não vira plan a menos que se confirme como problema real de uso.
+- **2026-08-22:** Confirmado com foto real de placa (não só imagem sintética): confiança baixa e
+  campos errados/"Não legível" em excesso — a fragilidade do regex de `plate_parser.py` contra
+  ruído real de OCR (não só o overlap já registrado acima) é o gargalo principal. Decisão do
+  usuário: caminho híbrido — `plan-12` troca a estruturação por regex por um LLM de **texto**
+  (nunca a imagem) via OpenRouter, tolerante a ruído, mantendo `ocr_engine.py` (EasyOCR) intocado
+  e sem custo de tokens de imagem. Pré-processamento de imagem (CLAHE, correção de perspectiva)
+  foi avaliado e **não escolhido** nesta rodada — fica como opção não explorada se o híbrido não
+  for suficiente.
 - **2026-08-22:** Apesar de `adr/005-integracoes-iniciais.md` aceitar Cloudflare R2 e de já existir
   `backend/shared_infra/storage_client.py` (usado hoje só pelo endpoint mockado `GET /api/manuals`, com
   credenciais reais já presentes no `.env`), **decisão explícita do usuário: o projeto roda majoritariamente
