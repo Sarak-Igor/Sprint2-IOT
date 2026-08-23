@@ -43,13 +43,6 @@
       "active": true
     },
     {
-      "id": "assets",
-      "label": "Provisionamento",
-      "icon": "Settings",
-      "category": "Infraestrutura",
-      "active": false
-    },
-    {
       "id": "history",
       "label": "Histórico Operacional",
       "icon": "Clock",

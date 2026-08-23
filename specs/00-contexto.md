@@ -262,6 +262,19 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
   corrigida para armazenar manuais e vetor-store 100% em disco local, não via R2. Não decidir sozinho por R2
   em nenhuma plan nova sem pedido explícito — perguntar antes.
 
+- **2026-08-23:** Confirmado com manual real ("WEG W22 Easy Maintenance Motofreio", indexado pelo
+  usuário via `plan-15`): a qualidade de resposta do RAG (e por extensão do agente conversacional,
+  `plan-14`) caía para perguntas técnicas específicas, enquanto um agente externo lendo o mesmo PDF
+  achava a informação sem dificuldade. Diagnóstico direto na base real (revisor): o manual tem só 6
+  chunks indexados; `query_similar_chunks()` usa `n_results=4` fixo, e o embedding local padrão do
+  ChromaDB não rankeou o chunk mais denso em dados (tabela de torque/tensão/rotação/energia) acima
+  de um parágrafo de marketing — o trecho com a resposta simplesmente não entrava no contexto do
+  LLM. Não é bug de extração nem de geração — o dado estava corretamente indexado; é recuperação
+  (quantos trechos entram no top-N) que falhava para bases pequenas. `plan-16` corrige de forma
+  adaptativa (base pequena → recupera tudo; base grande → mantém o teto). Melhoria de chunking
+  consciente de tabela foi avaliada e **não escolhida** nesta rodada — decisão do usuário, fica como
+  opção não explorada se o ajuste de recuperação não for suficiente.
+
 ## Pendências cobertas pela fila ativa (ver `00-indice.md` para status corrente)
 - Código órfão em `digital_twin_core` (`main.py`, `anomaly_logger.py`, `converters/metric_converter.py`) e o
   listener MQTT duplicado em `api/index.py:282-358` → `plan-05`.

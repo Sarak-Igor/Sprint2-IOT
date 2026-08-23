@@ -17,7 +17,7 @@ from backend.shared_infra.config import settings
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base (RAG)"])
 
-MAX_PDF_BYTES = 20 * 1024 * 1024  # 20MB
+MAX_PDF_BYTES = 100 * 1024 * 1024  # 100MB
 
 
 def _pdf_dir() -> Path:
@@ -59,7 +59,8 @@ async def ingest_manual(file: UploadFile = File(...)):
 
     pdf_bytes = await file.read()
     if len(pdf_bytes) > MAX_PDF_BYTES:
-        raise HTTPException(status_code=413, detail="PDF maior que 20MB")
+        max_mb = MAX_PDF_BYTES // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"PDF maior que {max_mb}MB")
 
     try:
         extraction = extract_and_chunk_pdf(pdf_bytes)

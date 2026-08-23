@@ -5,7 +5,7 @@ dominio: "Governança de Specs (SDD)"
 status: "🟢 Vigente"
 tags: ["processo", "indice", "sdd"]
 relacionados: ["[[00-contexto]]", "[[00-prompt-revisor]]", "[[00-prompt-executor]]"]
-proximo_numero_plan: "16" # NN da próxima plan a nascer. Só sobe. Nunca reaproveitado, mesmo que uma plan
+proximo_numero_plan: "18" # NN da próxima plan a nascer. Só sobe. Nunca reaproveitado, mesmo que uma plan
                            # seja depois removida por síntese — ver §5.
 ---
 
@@ -135,6 +135,8 @@ Toda plan declara, **desde o momento em que é escrita**, para onde seu conteúd
 | [plan-13-llm-fallback-config](plan/executadas/plan-13-llm-fallback-config.md) | 🟢 | 2026-08-22 | specs/03-asset-manager.md · specs/04-vision-ocr.md · specs/05-ai-knowledge.md |
 | [plan-14-agente-conversacional](plan/executadas/plan-14-agente-conversacional.md) | 🟢 | 2026-08-22 | specs/05-ai-knowledge.md · specs/06-agente-conversacional.md |
 | [plan-15-unificar-listagem-manuais](plan/executadas/plan-15-unificar-listagem-manuais.md) | 🟢 | 2026-08-23 | specs/05-ai-knowledge.md |
+| [plan-16-rag-recuperacao-completa-base-pequena](plan/executadas/plan-16-rag-recuperacao-completa-base-pequena.md) | 🟢 | 2026-08-23 | specs/05-ai-knowledge.md |
+| [plan-17-aumentar-limite-upload-manual](plan/executadas/plan-17-aumentar-limite-upload-manual.md) | 🟢 | 2026-08-23 | — |
 
 > Exemplo de linha, enquanto aguarda síntese:
 > `| [plan-05-tabela-sessions](plan/executadas/plan-05-tabela-sessions.md) | 🟢 | 2026-07-28 | arquitetura/04-dados.md · adr/003-jwt-vs-sessao.md |`

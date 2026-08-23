@@ -31,7 +31,7 @@ def test_ingest_rejects_non_pdf():
 
 def test_ingest_rejects_oversized_pdf():
     client = _build_client()
-    huge = io.BytesIO(b"0" * (20 * 1024 * 1024 + 1))
+    huge = io.BytesIO(b"0" * (knowledge_router_module.MAX_PDF_BYTES + 1))
 
     with patch.object(knowledge_router_module, "extract_and_chunk_pdf") as mock_extract:
         response = client.post(
@@ -39,6 +39,7 @@ def test_ingest_rejects_oversized_pdf():
         )
 
     assert response.status_code == 413
+    assert "100MB" in response.json()["detail"]
     mock_extract.assert_not_called()
 
 

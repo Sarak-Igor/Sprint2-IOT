@@ -3,10 +3,23 @@ from pathlib import Path
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from chromadb.utils import embedding_functions
 
 from backend.shared_infra.config import settings
 
-_COLLECTION_NAME = "manuais_tecnicos"
+_COLLECTION_NAME = "manuais_tecnicos_v2"
+
+# Teto de "coleção pequena": abaixo disso, a busca recupera todos os chunks (ignora o
+# ranking do embedding) em vez de só o top-N — um manual técnico de ~4 páginas já indexa
+# ~6 chunks com o splitter atual (chunk_size=1000, overlap=200); 50 chunks cobre
+# confortavelmente um manual pequeno/médio inteiro (dezenas de páginas) sem estourar
+# custo/latência quando a base crescer com mais manuais (plan-16).
+SMALL_COLLECTION_CHUNK_THRESHOLD = 150
+
+# Modelo multilingue 100% local e open-source para suportar o Português perfeitamente
+_embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+)
 
 
 @lru_cache(maxsize=1)
@@ -18,22 +31,32 @@ def _get_collection():
     client = chromadb.PersistentClient(
         path=str(storage_path), settings=ChromaSettings(anonymized_telemetry=False)
     )
-    return client.get_or_create_collection(_COLLECTION_NAME)
+    return client.get_or_create_collection(
+        name=_COLLECTION_NAME,
+        embedding_function=_embedding_fn
+    )
 
 
 def add_chunks(chunk_ids, documents, metadatas):
     _get_collection().add(ids=chunk_ids, documents=documents, metadatas=metadatas)
 
 
-def query_similar_chunks(question: str, n_results: int = 4):
-    """Retorna até `n_results` pares (texto, metadata) mais similares à pergunta, ou lista
-    vazia se nenhum manual foi indexado ainda."""
+def query_similar_chunks(question: str, n_results: int = 15):
+    """Retorna pares (texto, metadata) relevantes à pergunta, ou lista vazia se nenhum
+    manual foi indexado ainda. Recuperação adaptativa: quando a coleção tem no máximo
+    SMALL_COLLECTION_CHUNK_THRESHOLD chunks, recupera todos (um embedding local pequeno
+    pode rankear mal um trecho denso — ex.: tabela técnica — abaixo do top-N); acima do
+    teto, mantém o comportamento de sempre (até `n_results`), para não estourar
+    custo/latência quando a base de manuais crescer."""
     collection = _get_collection()
     count = collection.count()
     if count == 0:
         return []
 
-    result = collection.query(query_texts=[question], n_results=min(n_results, count))
+    effective_n_results = (
+        count if count <= SMALL_COLLECTION_CHUNK_THRESHOLD else min(n_results, count)
+    )
+    result = collection.query(query_texts=[question], n_results=effective_n_results)
     documents = result.get("documents", [[]])[0]
     metadatas = result.get("metadatas", [[]])[0]
     return list(zip(documents, metadatas))
