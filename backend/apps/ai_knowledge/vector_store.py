@@ -7,7 +7,7 @@ from chromadb.utils import embedding_functions
 
 from backend.shared_infra.config import settings
 
-_COLLECTION_NAME = "manuais_tecnicos_v2"
+_COLLECTION_NAME = "manuais_tecnicos_v3"
 
 # Teto de "coleção pequena": abaixo disso, a busca recupera todos os chunks (ignora o
 # ranking do embedding) em vez de só o top-N — um manual técnico de ~4 páginas já indexa

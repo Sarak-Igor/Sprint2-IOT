@@ -81,7 +81,12 @@ async def ingest_manual(file: UploadFile = File(...)):
     chunk_ids = [f"{manual_id}-{i}" for i in range(len(extraction.chunks))]
     documents = [chunk.text for chunk in extraction.chunks]
     metadatas = [
-        {"source": filename, "page": chunk.page, "manual_id": manual_id}
+        {
+            "source": filename,
+            "page": chunk.page,
+            "manual_id": manual_id,
+            "technology_tag": chunk.technology_tag,
+        }
         for chunk in extraction.chunks
     ]
     add_chunks(chunk_ids, documents, metadatas)
