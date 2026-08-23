@@ -1,6 +1,6 @@
 import asyncio
-import random
 import json
+import csv
 from pathlib import Path
 import paho.mqtt.client as mqtt
 from sqlalchemy import select
@@ -15,6 +15,11 @@ class MqttMockProvider(BaseProvider):
     def __init__(self):
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self.is_connected = False
+        
+        # Caminho absoluto para a base de dados em CSV
+        self.csv_path = Path(r"c:\Users\Igor\Desktop\Sarak\Fiap\CP - Sprint - GS\2º Ano\Sprints\Sprint 2\Industrial-Mind-develop\History_32026-05-19T11-46-10-920 (1).csv")
+        self.csv_data = []
+        self.current_index = 0
 
     async def connect(self):
         broker_url = settings.mqtt_broker_url.replace("mqtt://", "")
@@ -23,7 +28,7 @@ class MqttMockProvider(BaseProvider):
             self.client.connect(host, int(port))
             self.client.loop_start()
             self.is_connected = True
-            print(f"[SUCCESS] Simulador conectado ao MQTT Broker em {broker_url}")
+            print(f"[SUCCESS] CSV Injector conectado ao MQTT Broker em {broker_url}")
         except Exception as e:
             print(f"[ERROR] Falha na conexão MQTT: {e}")
 
@@ -31,78 +36,68 @@ class MqttMockProvider(BaseProvider):
         if self.is_connected:
             self.client.publish(topic, str(round(value, 2)))
 
-    def _generate_value(self, variable_name: str, thresholds: dict, var_id: str):
-        # 1. Recuperação de Limites: Busca os thresholds específicos do ativo para guiar a simulação
-        var_id_str = str(var_id)
-        spec = thresholds.get(var_id_str, {})
-        nominal = spec.get("nominal")
-        warning = spec.get("warning")
-        critical = spec.get("critical")
+    def load_csv(self):
+        try:
+            if not self.csv_path.exists():
+                print(f"[ERROR] Arquivo CSV não encontrado: {self.csv_path}")
+                return
 
-        # Fallbacks: Valores padrão baseados no tipo de variável caso não haja spec definida
-        if nominal is None:
-            defaults = {"temp": 65.0, "vib": 1.2, "curr": 42.0, "rpm": 1750.0, "volt": 220.0}
-            name_lower = variable_name.lower()
-            for key, val in defaults.items():
-                if key in name_lower:
-                    nominal = val
-                    break
-            if nominal is None: nominal = 50.0
-
-        # Lógica de Direção: Define se o valor crítico é por excesso (ex: Calor) ou falta (ex: RPM)
-        is_lower = (critical is not None and nominal is not None and critical < nominal)
-        
-        # MOTOR DE PROBABILIDADE (Sorteio de Estado):
-        # 70% chance de Normalidade, 20% Aviso, 10% Crítico (Anomalia)
-        chance = random.random()
-        
-        if chance < 0.70:
-            # ESTADO NORMAL (70%) - Flutua próximo ao valor nominal (ideal)
-            target = nominal
-            spread = 0.05 # 5% de variação
-        elif chance < 0.90:
-            # ESTADO AVISO (20%) - Simula início de desgaste ou sobrecarga
-            target = warning if warning is not None else (nominal * 1.15 if not is_lower else nominal * 0.85)
-            spread = 0.03
-        else:
-            # ESTADO CRÍTICO (10%) - Simula falha iminente ou quebra
-            if is_lower:
-                target = critical * 0.9 if critical is not None else nominal * 0.5
-            else:
-                target = critical * 1.1 if critical is not None else nominal * 1.5
-            spread = 0.05
-
-        # Ruído Dinâmico: Adiciona variação estocástica para evitar valores "perfeitos" e artificiais
-        noise = target * random.uniform(-spread, spread)
-        return target + noise
+            with open(self.csv_path, 'r', encoding='utf-8') as f:
+                reader = csv.reader(f, delimiter=';')
+                # Ignorar as 3 primeiras linhas (Cabeçalho da Balluff)
+                next(reader, None)
+                next(reader, None)
+                next(reader, None)
+                
+                for row in reader:
+                    if len(row) >= 6:
+                        try:
+                            # Índices baseados na estrutura do arquivo:
+                            # 3: 1.1. Velocidade, 4: 1.2. Aceleração, 5: 1.3. Temperatura
+                            # 6: 2.1. Velocidade, 7: 2.2. Aceleração, 8: 2.3. Temperatura
+                            self.csv_data.append({
+                                "velocidade_p1": float(row[3].replace(',', '.')),
+                                "aceleracao_p1": float(row[4].replace(',', '.')),
+                                "temperatura_p1": float(row[5].replace(',', '.')),
+                                "velocidade_p2": float(row[6].replace(',', '.')),
+                                "aceleracao_p2": float(row[7].replace(',', '.')),
+                                "temperatura_p2": float(row[8].replace(',', '.'))
+                            })
+                        except (ValueError, IndexError):
+                            continue
+            print(f"[INFO] Carregadas {len(self.csv_data)} linhas do CSV histórico.")
+        except Exception as e:
+            print(f"[ERROR] Erro ao ler CSV: {e}")
 
     async def start_loop(self):
         root_path = Path(__file__).resolve().parent.parent.parent.parent.parent
         config_path = root_path / "backend" / "simulator_config.json"
         
-        print("[SIMULATOR] Iniciando motor de simulação multi-ativo...")
+        print("[CSV INJECTOR] Iniciando injetor de dados a partir do histórico...")
         await self.connect()
+        self.load_csv()
 
         try:
             while True:
-                # Controle de Simulação: Permite pausar/ajustar intervalo via arquivo externo (dashboard)
-                running = True
-                interval = 5
+                running = False
                 if config_path.exists():
                     try:
                         with open(config_path, 'r', encoding='utf-8') as f:
                             cfg = json.load(f)
-                            running = cfg.get("running", True)
-                            interval = cfg.get("interval", 5)
+                            # Se "running" for true, o histórico CSV será ejetado no MQTT
+                            running = cfg.get("running", False)
                     except: pass
 
-                if not running:
-                    await asyncio.sleep(1)
+                if not running or len(self.csv_data) == 0:
+                    await asyncio.sleep(3) # Apenas aguarda o usuário ativar no dashboard
                     continue
 
-                # Ciclo de Publicação: Itera sobre todos os ativos cadastrados no sistema
+                # Pega a linha atual do CSV e avança o cursor (formando o loop infinito)
+                current_row = self.csv_data[self.current_index]
+                self.current_index = (self.current_index + 1) % len(self.csv_data)
+
+                # Publicar os dados nos tópicos MQTT correspondentes aos ativos
                 async with AsyncSessionLocal() as session:
-                    # Carrega dinamicamente os ativos e seus tópicos MQTT configurados
                     result = await session.execute(
                         select(ActiveAssetDB).options(selectinload(ActiveAssetDB.mappings))
                     )
@@ -110,28 +105,42 @@ class MqttMockProvider(BaseProvider):
 
                     total_published = 0
                     for asset in assets:
-                        thresholds = asset.applied_thresholds or {}
-                        
                         for mapping in asset.mappings:
-                            # Identifica a variável e gera o valor correspondente (simulando o sensor físico)
                             var_result = await session.execute(
                                 select(DataVariableDB).where(DataVariableDB.id == mapping.variable_id)
                             )
                             variable = var_result.scalar_one_or_none()
                             
                             if variable:
-                                val = self._generate_value(variable.name, thresholds, mapping.variable_id)
-                                # Dispara para o Broker MQTT (o que o ESP32 faria na prática)
+                                name_lower = variable.name.lower()
+                                val = 0.0
+                                
+                                # Associa a grandeza da base com a coluna específica
+                                if "velocidade" in name_lower and "porta 1" in name_lower:
+                                    val = current_row["velocidade_p1"]
+                                elif "acelera" in name_lower and "porta 1" in name_lower:
+                                    val = current_row["aceleracao_p1"]
+                                elif "temperatura" in name_lower and "porta 1" in name_lower:
+                                    val = current_row["temperatura_p1"]
+                                elif "velocidade" in name_lower and "porta 2" in name_lower:
+                                    val = current_row["velocidade_p2"]
+                                elif "acelera" in name_lower and "porta 2" in name_lower:
+                                    val = current_row["aceleracao_p2"]
+                                elif "temperatura" in name_lower and "porta 2" in name_lower:
+                                    val = current_row["temperatura_p2"]
+                                else:
+                                    continue # Ignora sensores que não dão match
+
                                 await self.publish(mapping.mqtt_topic, val)
                                 total_published += 1
 
                 if total_published > 0:
-                    print(f"[SIMULATOR] Ciclo concluído: {total_published} leituras publicadas para {len(assets)} ativos.")
+                    print(f"[CSV INJECTOR] Linha {self.current_index}/{len(self.csv_data)} injetada com sucesso (3s).")
                 
-                await asyncio.sleep(interval)
+                # O intervalo de simulação é estritamente 3 segundos
+                await asyncio.sleep(3)
 
         except asyncio.CancelledError:
             self.client.loop_stop()
             self.client.disconnect()
-            print("[INFO] Simulador encerrado.")
-
+            print("[INFO] Injetor CSV encerrado.")

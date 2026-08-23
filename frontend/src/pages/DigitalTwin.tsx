@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Thermometer, Zap, Gauge, AlertTriangle, ShieldCheck, Plus, Minus, Settings, MapPin, Save, Trash2, ChevronLeft, LayoutGrid, Box } from 'lucide-react';
+import { Activity, Thermometer, Zap, Gauge, AlertTriangle, ShieldCheck, Plus, Minus, Settings, MapPin, Save, Trash2, ChevronLeft, LayoutGrid, Box, Play, Pause } from 'lucide-react';
 import { SensorWidget } from '../components/SensorWidget';
 import { MiniSensorWidget } from '../components/MiniSensorWidget';
 
@@ -25,6 +25,9 @@ const DigitalTwin = () => {
     const [selectedModelId, setSelectedModelId] = useState('');
     const [mappings, setMappings] = useState<any[]>([]);
     
+    // Estado de controle da simulação CSV
+    const [simConfig, setSimConfig] = useState({ running: false });
+    
     // Cache para evitar spam de alertas (Cooldown de 1 minuto por sensor)
     const alertCooldowns = useRef<Record<string, number>>({});
 
@@ -39,6 +42,27 @@ const DigitalTwin = () => {
         } catch (e) {
             console.error("[ERROR] Erro de conexão ao buscar dashboard:", e);
         }
+    };
+
+    const fetchConfig = async () => {
+        try {
+            const res = await fetch('/api/config');
+            if (res.ok) {
+                const data = await res.json();
+                setSimConfig({ running: data.running });
+            }
+        } catch (e) { console.error("Erro ao buscar config", e); }
+    };
+
+    const updateConfig = async (newCfg: any) => {
+        try {
+            setSimConfig(newCfg);
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newCfg)
+            });
+        } catch (e) { console.error("Erro ao salvar config", e); }
     };
 
     useEffect(() => {
@@ -58,7 +82,9 @@ const DigitalTwin = () => {
             }
         };
         fetchInitialData();
-
+        fetchConfig();
+        const configInterval = setInterval(fetchConfig, 5000);
+        
         // Configuração do WebSocket: Conecta ao stream de telemetria em tempo real via protocolo seguro/inseguro
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/api/ws/telemetry`;
@@ -335,7 +361,39 @@ const DigitalTwin = () => {
                     </h1>
                 </div>
 
-                <div className="flex gap-4 relative z-10">
+                <div className="flex items-center gap-6 relative z-10">
+                    <div className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-md">
+                        <div className="flex flex-col gap-1 mr-2">
+                            <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Histórico CSV</span>
+                            <div className="flex items-center gap-2">
+                                <div className={`w-1.5 h-1.5 rounded-full ${simConfig.running ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${simConfig.running ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {simConfig.running ? 'Ativa' : 'Desligada'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 p-1 bg-black/20 rounded-xl border border-white/5">
+                            <button
+                                onClick={() => updateConfig({ running: true })}
+                                className={`p-2.5 rounded-lg transition-all ${simConfig.running ? 'bg-[var(--theme-primary)] text-black shadow-[0_0_15px_var(--theme-primary)]' : 'text-white/40 hover:text-white'}`}
+                                title="Ativar Leitura do CSV"
+                            >
+                                <Play size={14} fill={simConfig.running ? "currentColor" : "none"} />
+                            </button>
+                            <button
+                                onClick={() => updateConfig({ running: false })}
+                                className={`p-2.5 rounded-lg transition-all ${!simConfig.running ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'text-white/40 hover:text-white'}`}
+                                title="Desativar Leitura do CSV"
+                            >
+                                <Pause size={14} fill={!simConfig.running ? "currentColor" : "none"} />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="h-10 w-px bg-white/10" />
+
+                    <div className="flex gap-4">
                     {viewMode !== 'grid' ? (
                         <button 
                             onClick={() => setViewMode('grid')}
@@ -351,6 +409,7 @@ const DigitalTwin = () => {
                             <Plus size={16} /> Novo Gêmeo Digital
                         </button>
                     )}
+                    </div>
                 </div>
             </header>
 
@@ -455,7 +514,7 @@ const DigitalTwin = () => {
                         exit={{ opacity: 0, scale: 1.05 }}
                         className="grid grid-cols-1 lg:grid-cols-12 gap-8"
                     >
-                        <div className="lg:col-span-8 bg-black/40 rounded-[3rem] border border-white/5 p-12 relative overflow-hidden flex items-center justify-center min-h-[700px] backdrop-blur-2xl">
+                        <div className="lg:col-span-8 bg-black/40 rounded-[3rem] border border-white/5 p-12 relative overflow-hidden flex flex-col items-center justify-center min-h-[700px] backdrop-blur-2xl">
                             <div className="absolute inset-0 bg-gradient-to-br from-[var(--theme-primary)]/5 via-transparent to-transparent opacity-50" />
                             
                             {/* Global Asset Status Banner */}
@@ -537,8 +596,8 @@ const DigitalTwin = () => {
                                 })}
                             </svg>
 
-                            <div className="absolute top-12 left-12 flex flex-col gap-4">
-                                {selectedAsset.sensors.map((s: any, i: number) => {
+                            <div className="absolute top-1/2 -translate-y-1/2 left-8 flex flex-col gap-4 z-20 pointer-events-none">
+                                {selectedAsset.sensors.slice(0, 3).map((s: any, i: number) => {
                                     const topicKey = s.topic;
                                     const val = telemetry[topicKey] || 0;
                                     return (
@@ -547,7 +606,36 @@ const DigitalTwin = () => {
                                             initial={{ x: -20, opacity: 0 }}
                                             animate={{ x: 0, opacity: 1 }}
                                             transition={{ delay: i * 0.1 }}
-                                            className="bg-black/60 border border-white/10 p-4 rounded-2xl backdrop-blur-md min-w-[200px]"
+                                            className="bg-black/60 border border-white/10 p-4 rounded-2xl backdrop-blur-md min-w-[200px] pointer-events-auto"
+                                        >
+                                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-1">{s.variable}</p>
+                                            <div className="flex items-end justify-between gap-2">
+                                                <div className="flex items-end gap-2">
+                                                    <span className={`text-2xl font-black ${getStatusInfo(val, s.thresholds).color}`}>
+                                                        {val.toFixed(1)}
+                                                    </span>
+                                                    <span className="text-[10px] text-white/40 font-bold pb-1">{s.unit}</span>
+                                                </div>
+                                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${getStatusInfo(val, s.thresholds).bg} ${getStatusInfo(val, s.thresholds).color}`}>
+                                                    {getStatusInfo(val, s.thresholds).text}
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="absolute top-1/2 -translate-y-1/2 right-8 flex flex-col gap-4 z-20 pointer-events-none">
+                                {selectedAsset.sensors.slice(3, 6).map((s: any, i: number) => {
+                                    const topicKey = s.topic;
+                                    const val = telemetry[topicKey] || 0;
+                                    return (
+                                        <motion.div 
+                                            key={i + 3}
+                                            initial={{ x: 20, opacity: 0 }}
+                                            animate={{ x: 0, opacity: 1 }}
+                                            transition={{ delay: i * 0.1 }}
+                                            className="bg-black/60 border border-white/10 p-4 rounded-2xl backdrop-blur-md min-w-[200px] pointer-events-auto"
                                         >
                                             <p className="text-[10px] text-white/40 font-bold uppercase tracking-wider mb-1">{s.variable}</p>
                                             <div className="flex items-end justify-between gap-2">
@@ -618,10 +706,12 @@ const DigitalTwin = () => {
                                         
                                         return (
                                             <div key={i} className="space-y-4">
-                                                <div className="flex justify-between items-end">
-                                                    <span className="text-[10px] text-white/60 font-black uppercase tracking-widest">{s.variable}</span>
+                                                <div className="flex justify-between items-end gap-2">
+                                                    <span className="text-[10px] text-white/60 font-black uppercase tracking-widest truncate flex-1">{s.variable}</span>
                                                     {!isEditingThresholds && (
-                                                        <span className="text-[10px] text-white/40 font-bold">{val.toFixed(1)} / {th.critical || '--'} {s.unit}</span>
+                                                        <span className="text-[10px] text-white/40 font-bold whitespace-nowrap shrink-0">
+                                                            {val.toFixed(1)} / {th.critical || '--'} {s.unit}
+                                                        </span>
                                                     )}
                                                 </div>
 

@@ -279,11 +279,11 @@ const Dashboard = () => {
 
                     <div className="flex flex-wrap items-center gap-4 p-6 bg-white/5 rounded-[2rem] border border-white/10 backdrop-blur-md">
                         <div className="flex flex-col gap-1 mr-4">
-                            <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Status do Simulador</span>
+                            <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Injeção de Histórico CSV</span>
                             <div className="flex items-center gap-2">
                                 <div className={`w-1.5 h-1.5 rounded-full ${simConfig.running ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${simConfig.running ? 'text-emerald-500' : 'text-red-500'}`}>
-                                    {simConfig.running ? 'Iniciada' : 'Pausada'}
+                                    {simConfig.running ? 'Ativa' : 'Desligada'}
                                 </span>
                             </div>
                         </div>
@@ -292,33 +292,17 @@ const Dashboard = () => {
                             <button
                                 onClick={() => updateConfig({ ...simConfig, running: true })}
                                 className={`p-3 rounded-lg transition-all ${simConfig.running ? 'bg-[var(--theme-primary)] text-black shadow-[0_0_15px_var(--theme-primary)]' : 'text-white/40 hover:text-white'}`}
+                                title="Ativar Leitura do CSV"
                             >
                                 <Play size={16} fill={simConfig.running ? "currentColor" : "none"} />
                             </button>
                             <button
                                 onClick={() => updateConfig({ ...simConfig, running: false })}
                                 className={`p-3 rounded-lg transition-all ${!simConfig.running ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'text-white/40 hover:text-white'}`}
+                                title="Desativar Leitura do CSV"
                             >
                                 <Pause size={16} fill={!simConfig.running ? "currentColor" : "none"} />
                             </button>
-                        </div>
-
-                        <div className="h-10 w-px bg-white/10 mx-2" />
-
-                        <div className="flex items-center gap-3">
-                            <Clock size={16} className="text-white/40" />
-                            <select
-                                value={simConfig.interval}
-                                onChange={(e) => updateConfig({ ...simConfig, interval: parseInt(e.target.value) })}
-                                className="bg-black/40 text-white text-[10px] font-black uppercase tracking-widest border border-white/10 rounded-xl px-4 py-3 outline-none focus:border-[var(--theme-primary)] transition-colors cursor-pointer"
-                            >
-                                <option value={2}>2 Segundos</option>
-                                <option value={5}>5 Segundos</option>
-                                <option value={10}>10 Segundos</option>
-                                <option value={15}>15 Segundos</option>
-                                <option value={30}>30 Segundos</option>
-                                <option value={60}>1 Minuto</option>
-                            </select>
                         </div>
                     </div>
                 </div>
