@@ -71,6 +71,13 @@
       "active": true
     },
     {
+      "id": "agent",
+      "label": "Agente IA",
+      "icon": "Bot",
+      "category": "Suporte",
+      "active": true
+    },
+    {
       "id": "simulator",
       "label": "Flow Vision",
       "icon": "Zap",

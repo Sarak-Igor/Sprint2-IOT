@@ -37,3 +37,33 @@ def query_similar_chunks(question: str, n_results: int = 4):
     documents = result.get("documents", [[]])[0]
     metadatas = result.get("metadatas", [[]])[0]
     return list(zip(documents, metadatas))
+
+
+def list_indexed_manuals() -> list[dict]:
+    """Deriva a lista de manuais realmente indexados a partir dos metadados já gravados no
+    ChromaDB (`source`, `page`, `manual_id`, gravados por `router.py` na ingestão) —
+    agrupa os chunks por `manual_id`, sem duplicar esse estado em nenhuma estrutura
+    paralela. `paginas` é a maior página vista (nº de páginas com pelo menos um chunk
+    indexado); `chunks_indexados` é a contagem de chunks daquele manual. Lista vazia se
+    nenhum manual foi indexado ainda (mesmo espírito de `query_similar_chunks`)."""
+    collection = _get_collection()
+    if collection.count() == 0:
+        return []
+
+    metadatas = collection.get(include=["metadatas"])["metadatas"]
+    manuals: dict[str, dict] = {}
+    for metadata in metadatas:
+        manual_id = metadata["manual_id"]
+        manual = manuals.setdefault(
+            manual_id,
+            {
+                "manual_id": manual_id,
+                "filename": metadata["source"],
+                "paginas": 0,
+                "chunks_indexados": 0,
+            },
+        )
+        manual["paginas"] = max(manual["paginas"], metadata["page"])
+        manual["chunks_indexados"] += 1
+
+    return list(manuals.values())

@@ -15,7 +15,7 @@ def test_answer_question_returns_graceful_message_when_no_manuals_indexed():
 
 
 def test_answer_question_raises_when_api_key_missing(monkeypatch):
-    monkeypatch.setattr(rag_engine.settings, "openrouter_api_key", "")
+    monkeypatch.setattr(rag_engine.llm_client.settings, "openrouter_api_key", "")
     fake_chunks = [("vibracao limite 4.5mm/s", {"source": "manual.pdf", "page": 12})]
 
     with patch.object(rag_engine, "query_similar_chunks", return_value=fake_chunks):
@@ -23,8 +23,7 @@ def test_answer_question_raises_when_api_key_missing(monkeypatch):
             answer_question("Qual o limite de vibração?")
 
 
-def test_answer_question_returns_llm_answer_with_source_citations(monkeypatch):
-    monkeypatch.setattr(rag_engine.settings, "openrouter_api_key", "fake-key")
+def test_answer_question_returns_llm_answer_with_source_citations():
     fake_chunks = [
         ("vibracao limite 4.5mm/s RMS", {"source": "manual_w22.pdf", "page": 12})
     ]
@@ -34,7 +33,11 @@ def test_answer_question_returns_llm_answer_with_source_citations(monkeypatch):
 
     with (
         patch.object(rag_engine, "query_similar_chunks", return_value=fake_chunks),
-        patch.object(rag_engine, "_build_llm", return_value=fake_llm),
+        patch.object(
+            rag_engine.llm_client,
+            "invoke_with_fallback",
+            side_effect=lambda run, **kwargs: run(fake_llm),
+        ),
     ):
         result = answer_question("Qual o limite de vibração?")
 

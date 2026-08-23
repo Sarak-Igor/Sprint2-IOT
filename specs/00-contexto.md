@@ -225,6 +225,28 @@ Antes de escolher **como** fazer algo, leia **[[00-knowledge]]** — é o rotead
   atribui o texto ao primeiro campo da ordem de prioridade e deixa o outro como "Não legível" —
   nunca inventa valor, só perde recall. Só uma foto real de placa revela se isso é comum na
   prática; não vira plan a menos que se confirme como problema real de uso.
+- **2026-08-22:** Verificação real (revisor, com chave de teste do usuário) confirmou 2 de 3
+  chamadas de LLM funcionando de ponta a ponta (`ai_enrichment` da `plan-02`, `rag_engine` da
+  `plan-04`). A terceira (`plate_llm_structurer` da `plan-12`) falhou com o modelo gratuito de
+  raciocínio testado (`nvidia/nemotron-3-ultra-550b-a55b:free`) — estourou o teto de tokens de
+  saída "pensando" antes de responder; o fallback automático para regex (já aprovado) funcionou
+  como projetado, sem quebrar a feature. Decisão do usuário: `plan-13` move a escolha de modelo
+  de `OPENROUTER_MODEL`/`.env` para um arquivo de config JSON versionado, com lista de fallback
+  entre modelos — resolve a causa raiz, não só o sintoma.
+- **2026-08-22:** Resolvido — `plan-13` implementou `backend/shared_infra/llm_client.py`
+  (`invoke_with_fallback`, Fail-Fast de config, tentativa em ordem pela lista de
+  `backend/shared_infra/llm_models.json`) e migrou os três módulos duplicados
+  (`ai_enrichment`, `plate_llm_structurer`, `rag_engine`). **Confirmado com chamada real, sem
+  mock, contra a lista de produção**: o modelo primário (`openai/gpt-5.6-luna`) falhou por
+  falta de crédito, o helper avançou automaticamente e um modelo gratuito da lista completou
+  com sucesso — prova de que o problema real desta sessão (modelo de raciocínio estourando
+  teto de tokens) tem correção estrutural, não só coberta por teste mockado. **Correção de
+  registro:** o resumo da execução alegou (erroneamente) que `openai/gpt-4o-mini` e
+  `openrouter/free` não existem mais no catálogo do OpenRouter — o revisor consultou a API
+  pública e confirmou que **os dois existem**. `openrouter/free` foi testado de verdade contra
+  `with_structured_output` e falhou (devolve texto livre, não JSON) — por isso, apesar de
+  existir, não é escolha funcional para os módulos que exigem saída estruturada; a lista final
+  de modelos da `plan-13` permanece correta, só a justificativa registrada estava errada.
 - **2026-08-22:** Confirmado com foto real de placa (não só imagem sintética): confiança baixa e
   campos errados/"Não legível" em excesso — a fragilidade do regex de `plate_parser.py` contra
   ruído real de OCR (não só o overlap já registrado acima) é o gargalo principal. Decisão do

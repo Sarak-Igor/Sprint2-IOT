@@ -1,10 +1,9 @@
 from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 from backend.apps.asset_manager.domain.entities import MotorSpecEnrichment
-from backend.shared_infra.config import settings
+from backend.shared_infra import llm_client
 
 
 class MotorEnrichmentError(Exception):
@@ -34,31 +33,16 @@ _PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-def _build_llm() -> ChatOpenAI:
-    if not settings.openrouter_api_key:
-        raise MotorEnrichmentError(
-            "OPENROUTER_API_KEY não configurada — defina no .env"
-        )
-
-    return ChatOpenAI(
-        api_key=settings.openrouter_api_key,
-        base_url=settings.openrouter_base_url,
-        model=settings.openrouter_model,
-        temperature=0,
-    )
-
-
 def enrich_motor_specs(
     description: str, known_variable_names: List[str]
 ) -> MotorSpecEnrichment:
-    """Consulta o LLM (via OpenRouter) para deduzir marca/modelo/potência/RPM/IP e sugestões
-    de limiar a partir da descrição livre do usuário. Levanta MotorEnrichmentError se a chave
-    de API não estiver configurada ou se a chamada falhar — nunca retorna dado parcial."""
-    llm = _build_llm()
-    structured_llm = llm.with_structured_output(MotorSpecEnrichment)
-    chain = _PROMPT | structured_llm
+    """Consulta o LLM (via OpenRouter, tentando a lista de modelos de fallback) para deduzir
+    marca/modelo/potência/RPM/IP e sugestões de limiar a partir da descrição livre do
+    usuário. Levanta MotorEnrichmentError se a chave de API não estiver configurada ou se
+    todos os modelos da lista falharem — nunca retorna dado parcial."""
 
-    try:
+    def _run(llm):
+        chain = _PROMPT | llm.with_structured_output(MotorSpecEnrichment)
         return chain.invoke(
             {
                 "description": description,
@@ -66,7 +50,10 @@ def enrich_motor_specs(
                 or "nenhuma cadastrada ainda",
             }
         )
-    except Exception as exc:
+
+    try:
+        return llm_client.invoke_with_fallback(_run, temperature=0)
+    except (llm_client.LlmConfigError, llm_client.LlmAllModelsFailedError) as exc:
         raise MotorEnrichmentError(
             f"Falha ao consultar o LLM via OpenRouter: {exc}"
         ) from exc

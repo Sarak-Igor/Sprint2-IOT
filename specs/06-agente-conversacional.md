@@ -33,12 +33,33 @@ combinar com outras fontes) vive na camada do agente, não no RAG.
 - **Regra 3 (citação preservada):** toda resposta do agente que se apoiar na base de manuais deve
   preservar a citação de fonte (manual + página) que `AskResponse.fontes` já fornece — o agente
   não pode "resumir" a resposta do RAG de um jeito que perca a rastreabilidade da fonte.
+- **Regra 4 (escopo desta primeira versão — decidido com o usuário em 2026-08-22):** a única
+  capacidade do agente é a consulta a manuais via RAG. Nenhuma leitura de telemetria/anomalias/
+  ativos nem ação sobre o sistema (criar ativo, disparar alerta) nesta fase — cada uma dessas
+  seria uma superfície de risco nova, decidida numa plan própria e futura.
+- **Regra 5 (interface — aba própria):** o agente vive em uma aba dedicada do frontend, separada
+  da aba "Knowledge" (que continua sendo só a base de manuais + upload). Não evolui o painel
+  "Assistente de Conhecimento" existente ali.
+- **Regra 6 (memória de sessão):** o agente mantém contexto de conversa dentro de uma mesma sessão
+  (mensagens anteriores influenciam a interpretação de mensagens seguintes) — diferente do RAG
+  puro, que trata cada pergunta isoladamente. A sessão não precisa sobreviver a um reload de
+  página nem persistir em banco (ver escopo da plan de implementação).
+- **Regra 7 (orquestração por function-calling):** um único LLM decide, via tool-calling, se a
+  pergunta do operador exige consultar a capacidade de RAG ou pode ser respondida diretamente
+  (ou recusada, se fora do que o agente sabe fazer) — sem um roteador de intenção separado.
+- **Regra 8 (autenticação):** como login está postergado (`adr/003-autenticacao.md`), o agente
+  herda essa mesma limitação — sem diferenciação de operador por enquanto.
 
 # 3. Critérios de Aceite
 - [ ] O agente responde a uma pergunta usando a base de manuais e cita a fonte (manual + página).
 - [ ] O agente não reimplementa nenhuma parte do pipeline de RAG (extração de PDF, chunking,
   vetor-store) — só consome a função/endpoint já existente.
-- [ ] *(demais critérios dependem das decisões em aberto abaixo — a preencher quando a plan for escrita)*
+- [ ] O agente vive em uma aba própria do frontend, distinta da aba "Knowledge".
+- [ ] O agente mantém contexto de conversa dentro de uma sessão (uma pergunta de acompanhamento,
+  sem repetir o assunto, é respondida coerentemente com a mensagem anterior).
+- [ ] Um único LLM decide via function-calling quando chamar a capacidade de RAG; pergunta fora do
+  domínio de manuais não aciona a capacidade indevidamente nem inventa uma capacidade inexistente.
+- [ ] Nenhuma capacidade além da consulta a manuais foi implementada nesta primeira versão.
 
 # 4. Plano de Testes (Quality Gate)
 
@@ -46,27 +67,32 @@ combinar com outras fontes) vive na camada do agente, não no RAG.
 - [ ] **Deve** chamar a capacidade de RAG (mockada) e repassar a resposta com fontes intactas.
 - [ ] **Deve** tratar graciosamente a ausência de manuais indexados (mesmo comportamento que
   `answer_question` já tem hoje: mensagem informativa, não erro).
+- [ ] **Deve** decidir, via LLM mockado, entre acionar a capacidade de RAG ou responder direto,
+  conforme o conteúdo da pergunta.
+- [ ] **Deve** manter e usar o histórico de mensagens de uma sessão ao montar a próxima chamada ao
+  LLM, com um limite máximo de mensagens guardadas (mitigação de custo/Model DoS).
 
 ## Testes E2E (Integração)
-- [ ] *(a definir quando o escopo completo do agente — interface, outras capacidades — estiver decidido)*
+- [ ] Fluxo feliz: usuário abre a aba do agente, pergunta algo coberto por um manual indexado,
+  recebe resposta com fonte; faz uma segunda pergunta de acompanhamento e a resposta usa o
+  contexto da primeira.
 
-# 5. Em aberto — decisões pendentes, não inventadas aqui
-Estas perguntas não têm resposta ainda; ficam registradas para quando o usuário decidir e uma
-plan for escrita — nenhuma delas foi assumida ou implementada.
+# 5. Decisões tomadas (HITL com o usuário, 2026-08-22)
+As perguntas abaixo, antes em aberto, foram decididas pelo usuário na criação da primeira plan de
+implementação (`plan-14-agente-conversacional`) — o resultado de cada uma virou regra de negócio
+em §2:
 
-- **Escopo de capacidades:** o agente só responde perguntas sobre manuais, ou também consulta
-  telemetria/anomalias/ativos, ou pode agir sobre o sistema (ex.: criar um ativo, disparar um
-  alerta)? Cada capacidade nova é uma decisão de superfície de risco diferente.
-- **Interface:** vive dentro da aba Knowledge (evoluindo o painel "Assistente de Conhecimento"
-  já existente), ou ganha uma aba própria?
-- **Memória de conversa:** cada pergunta é isolada (como o RAG hoje) ou o agente mantém contexto
-  entre mensagens de uma sessão?
-- **Modelo/orquestração:** um único LLM com function-calling sobre as capacidades disponíveis, ou
-  uma orquestração mais explícita (roteador de intenção → capacidade)?
-- **Autenticação/autorização:** como login está postergado (`adr/003-autenticacao.md`), o agente
-  herda essa mesma limitação — sem diferenciação de operador por enquanto.
+- **Escopo de capacidades** → Regra 4: só RAG de manuais nesta primeira versão.
+- **Interface** → Regra 5: aba própria.
+- **Memória de conversa** → Regra 6: mantém contexto dentro da sessão.
+- **Modelo/orquestração** → Regra 7: LLM único com function-calling.
+- **Autenticação/autorização** → Regra 8: sem diferenciação de operador (herda `adr/003`).
+
+**Ainda em aberto, deliberadamente fora desta primeira plan:** qualquer capacidade nova (leitura de
+telemetria/anomalias/ativos, ações sobre o sistema) fica para uma decisão e uma plan futuras,
+quando houver necessidade real declarada.
 
 # 6. Contrato de manutenção desta spec
-Quando as decisões da §5 forem tomadas, o agente revisor atualiza esta spec (regras de negócio e
-critérios de aceite ficam completos) na mesma ação em que escreve a primeira plan de
-implementação — spec e plan nascem juntas nesse momento, não uma sem a outra.
+As decisões de escopo desta primeira versão estão fechadas (§5). Uma capacidade nova exige nova
+rodada de decisão com o usuário e atualização desta spec (Regra 4 e §5), na mesma ação em que a
+plan correspondente for escrita.

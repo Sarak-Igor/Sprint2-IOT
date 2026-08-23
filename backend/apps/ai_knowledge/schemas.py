@@ -23,3 +23,12 @@ class IngestResponse(BaseModel):
     filename: str
     paginas: int
     chunks_indexados: int
+
+
+class ManualInfo(BaseModel):
+    manual_id: str
+    filename: str
+    paginas: int
+    chunks_indexados: int
+    tamanho_bytes: int
+    download_url: str

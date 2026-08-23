@@ -45,12 +45,13 @@ class Settings(BaseSettings):
     telegram_bot_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     telegram_chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
 
-    # LLM (OpenRouter, via LangChain) — enriquecimento de catálogo de motores
+    # LLM (OpenRouter, via LangChain) — chave/endpoint são segredo/config por ambiente;
+    # a lista de modelos (com fallback) vive em backend/shared_infra/llm_models.json,
+    # versionada no repositório — não é segredo, não muda por ambiente (plan-13)
     openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
     openrouter_base_url: str = os.getenv(
         "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
     )
-    openrouter_model: str = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
     # Base de Conhecimento (RAG) — PDFs e vetor-store 100% locais (decisão do usuário,
     # 2026-08-22: sem depender de rede externa/Cloudflare R2 aqui, ver 00-contexto.md §8)

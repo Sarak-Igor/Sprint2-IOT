@@ -1,9 +1,8 @@
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
 from backend.apps.ai_knowledge.schemas import AskResponse, SourceCitation
 from backend.apps.ai_knowledge.vector_store import query_similar_chunks
-from backend.shared_infra.config import settings
+from backend.shared_infra import llm_client
 
 
 class KnowledgeQueryError(Exception):
@@ -22,18 +21,6 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _build_llm() -> ChatOpenAI:
-    if not settings.openrouter_api_key:
-        raise KnowledgeQueryError("OPENROUTER_API_KEY não configurada — defina no .env")
-
-    return ChatOpenAI(
-        api_key=settings.openrouter_api_key,
-        base_url=settings.openrouter_base_url,
-        model=settings.openrouter_model,
-        temperature=0,
-    )
-
-
 def _format_context(chunks) -> str:
     parts = [
         f"[Trecho {i} — {metadata['source']}, página {metadata['page']}]\n{text}"
@@ -43,8 +30,9 @@ def _format_context(chunks) -> str:
 
 
 def answer_question(question: str) -> AskResponse:
-    """Busca os trechos mais relevantes no vetor-store local e pede ao LLM (via OpenRouter)
-    uma resposta baseada só neles, com citação de manual + página."""
+    """Busca os trechos mais relevantes no vetor-store local e pede ao LLM (via OpenRouter,
+    tentando a lista de modelos de fallback) uma resposta baseada só neles, com citação de
+    manual + página."""
     chunks = query_similar_chunks(question)
     if not chunks:
         return AskResponse(
@@ -52,16 +40,18 @@ def answer_question(question: str) -> AskResponse:
             fontes=[],
         )
 
-    llm = _build_llm()
     human_message = (
         f"Contexto dos manuais:\n\n{_format_context(chunks)}\n\nPergunta: {question}"
     )
 
-    try:
-        response = llm.invoke(
+    def _run(llm):
+        return llm.invoke(
             [SystemMessage(content=_SYSTEM_PROMPT), HumanMessage(content=human_message)]
         )
-    except Exception as exc:
+
+    try:
+        response = llm_client.invoke_with_fallback(_run, temperature=0)
+    except (llm_client.LlmConfigError, llm_client.LlmAllModelsFailedError) as exc:
         raise KnowledgeQueryError(
             f"Falha ao consultar o LLM via OpenRouter: {exc}"
         ) from exc

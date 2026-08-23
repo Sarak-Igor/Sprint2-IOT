@@ -2,12 +2,25 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, BookOpen, FileText, Download, ExternalLink, Info, Book, Loader2, Sparkles, Upload, Send } from 'lucide-react';
 
 interface Manual {
-    title: string;
-    category: string;
-    url: string;
-    size: string;
-    tags: string[];
+    manual_id: string;
+    filename: string;
+    paginas: number;
+    chunks_indexados: number;
+    tamanho_bytes: number;
+    download_url: string;
 }
+
+const formatBytes = (bytes: number): string => {
+    if (bytes <= 0) return '—';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    return `${value.toFixed(1)} ${units[unitIndex]}`;
+};
 
 interface SourceCitation {
     manual: string;
@@ -38,7 +51,7 @@ const Knowledge = () => {
     useEffect(() => {
         const fetchManuals = async () => {
             try {
-                const response = await fetch('/api/manuals');
+                const response = await fetch('/api/knowledge/manuals');
                 if (response.ok) {
                     const data = await response.json();
                     setManuals(data);
@@ -115,11 +128,11 @@ const Knowledge = () => {
         { term: 'Escorregamento', definition: 'Diferença entre a velocidade síncrona e a velocidade real de rotação do motor.' }
     ];
 
-    const handleDownload = (url: string, title: string, e?: React.MouseEvent) => {
+    const handleDownload = (url: string, filename: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${title}.pdf`;
+        link.download = filename;
         link.target = "_blank";
         document.body.appendChild(link);
         link.click();
@@ -236,31 +249,28 @@ const Knowledge = () => {
                                 <Loader2 className="animate-spin text-[var(--theme-primary)]" size={32} />
                             </div>
                         ) : manuals.length > 0 ? (
-                            manuals.filter(m => m.title.toLowerCase().includes(search.toLowerCase()) || m.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))).map((doc, i) => (
-                                <div 
-                                    key={i} 
-                                    onClick={() => handleOpen(doc.url)}
+                            manuals.filter(m => m.filename.toLowerCase().includes(search.toLowerCase())).map((doc) => (
+                                <div
+                                    key={doc.manual_id}
+                                    onClick={() => handleOpen(doc.download_url)}
                                     className="bg-theme-card border-theme p-6 rounded-theme hover:bg-white/[0.04] transition-all group cursor-pointer border-l-2 border-l-transparent hover:border-l-[var(--theme-primary)]"
                                 >
                                     <div className="flex justify-between items-start mb-6">
                                         <div className="p-3 bg-white/5 rounded-xl text-white/40 group-hover:text-[var(--theme-primary)] transition-colors">
                                             <BookOpen size={24} />
                                         </div>
-                                        <button 
-                                            onClick={(e) => handleDownload(doc.url, doc.title, e)}
+                                        <button
+                                            onClick={(e) => handleDownload(doc.download_url, doc.filename, e)}
                                             className="p-2 bg-white/5 rounded-lg text-white/20 hover:text-white transition-colors"
                                         >
                                             <Download size={16} />
                                         </button>
                                     </div>
-                                    <h4 className="text-base font-black text-white uppercase tracking-tight mb-2 leading-tight">{doc.title}</h4>
-                                    <div className="flex flex-wrap gap-2 mb-4">
-                                        {doc.tags.map(tag => (
-                                            <span key={tag} className="text-[8px] font-black text-white/20 bg-white/5 px-2 py-0.5 rounded uppercase tracking-widest">{tag}</span>
-                                        ))}
-                                    </div>
+                                    <h4 className="text-base font-black text-white uppercase tracking-tight mb-4 leading-tight">{doc.filename}</h4>
                                     <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
-                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{doc.size}</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                            {formatBytes(doc.tamanho_bytes)} · {doc.paginas} pág. · {doc.chunks_indexados} trechos
+                                        </span>
                                         <span className="text-[10px] font-black text-[var(--theme-primary)] uppercase tracking-widest flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             Abrir <ExternalLink size={10} />
                                         </span>

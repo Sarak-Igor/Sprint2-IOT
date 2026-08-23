@@ -1,0 +1,7 @@
+{
+  "models": [
+    "openai/gpt-5.6-luna",
+    "liquid/lfm-2.5-2.6b:free",
+    "poolside/laguna-s-2.1:free"
+  ]
+}

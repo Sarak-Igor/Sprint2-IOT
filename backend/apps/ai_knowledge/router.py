@@ -2,11 +2,17 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 
 from backend.apps.ai_knowledge.pdf_ingestion import extract_and_chunk_pdf
 from backend.apps.ai_knowledge.rag_engine import KnowledgeQueryError, answer_question
-from backend.apps.ai_knowledge.schemas import AskRequest, AskResponse, IngestResponse
-from backend.apps.ai_knowledge.vector_store import add_chunks
+from backend.apps.ai_knowledge.schemas import (
+    AskRequest,
+    AskResponse,
+    IngestResponse,
+    ManualInfo,
+)
+from backend.apps.ai_knowledge.vector_store import add_chunks, list_indexed_manuals
 from backend.shared_infra.config import settings
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base (RAG)"])
@@ -14,12 +20,32 @@ router = APIRouter(prefix="/knowledge", tags=["Knowledge Base (RAG)"])
 MAX_PDF_BYTES = 20 * 1024 * 1024  # 20MB
 
 
+def _pdf_dir() -> Path:
+    return Path(settings.knowledge_storage_path) / "pdfs"
+
+
+def _pdf_size_or_zero(manual_id: str) -> int:
+    pdf_path = _pdf_dir() / f"{manual_id}.pdf"
+    return pdf_path.stat().st_size if pdf_path.exists() else 0
+
+
+def _resolve_manual_pdf_path(manual_id: str) -> Path:
+    """Resolve o caminho do PDF local a partir do manual_id da URL, confirmando que o
+    resultado continua dentro de `pdf_dir` — defesa contra path traversal via o
+    parâmetro vindo do cliente, mesmo espírito do `_save_pdf_locally` acima."""
+    pdf_dir = _pdf_dir().resolve()
+    candidate = (pdf_dir / f"{manual_id}.pdf").resolve()
+    if pdf_dir not in candidate.parents:
+        raise HTTPException(status_code=404, detail="Manual não encontrado")
+    return candidate
+
+
 def _save_pdf_locally(manual_id: str, pdf_bytes: bytes) -> None:
     """Salva o PDF original em disco local (settings.knowledge_storage_path) — nunca via
     storage_client/Cloudflare R2, decisão explícita do usuário para esta feature. O nome do
     arquivo usa só o manual_id (gerado pelo servidor), nunca o filename enviado pelo cliente,
     para não abrir caminho de path traversal."""
-    pdf_dir = Path(settings.knowledge_storage_path) / "pdfs"
+    pdf_dir = _pdf_dir()
     pdf_dir.mkdir(parents=True, exist_ok=True)
     (pdf_dir / f"{manual_id}.pdf").write_bytes(pdf_bytes)
 
@@ -73,3 +99,30 @@ async def ask_knowledge_base(request: AskRequest):
         return answer_question(request.pergunta)
     except KnowledgeQueryError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.get("/manuals", response_model=list[ManualInfo])
+async def list_manuals():
+    """Lista os manuais realmente indexados no vetor-store — nenhum valor fixo, deriva do
+    estado real do RAG (`list_indexed_manuals`)."""
+    return [
+        ManualInfo(
+            manual_id=manual["manual_id"],
+            filename=manual["filename"],
+            paginas=manual["paginas"],
+            chunks_indexados=manual["chunks_indexados"],
+            tamanho_bytes=_pdf_size_or_zero(manual["manual_id"]),
+            download_url=f"/api/knowledge/manuals/{manual['manual_id']}/download",
+        )
+        for manual in list_indexed_manuals()
+    ]
+
+
+@router.get("/manuals/{manual_id}/download")
+async def download_manual(manual_id: str):
+    """Serve o PDF original a partir do disco local — sem storage_client/Cloudflare R2,
+    decisão já tomada para `ai_knowledge` (`00-contexto.md §8`)."""
+    pdf_path = _resolve_manual_pdf_path(manual_id)
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Manual não encontrado")
+    return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_path.name)

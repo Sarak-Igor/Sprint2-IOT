@@ -1,8 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 from backend.apps.asset_manager.vision.schemas import PlateExtractionResult
-from backend.shared_infra.config import settings
+from backend.shared_infra import llm_client
 
 _MAX_DETECTIONS = 40
 _MAX_DETECTIONS_TEXT_LENGTH = (
@@ -40,19 +39,6 @@ _PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-def _build_llm() -> ChatOpenAI:
-    if not settings.openrouter_api_key:
-        raise LlmStructuringError("OPENROUTER_API_KEY não configurada — defina no .env")
-
-    return ChatOpenAI(
-        api_key=settings.openrouter_api_key,
-        base_url=settings.openrouter_base_url,
-        model=settings.openrouter_model,
-        temperature=0,
-        max_tokens=_MAX_OUTPUT_TOKENS,
-    )
-
-
 def _format_detections(detections: list[tuple[str, float]]) -> str:
     limited = detections[:_MAX_DETECTIONS]
     lines = [f"- {text!r} | {confidence:.1f}" for text, confidence in limited]
@@ -60,16 +46,22 @@ def _format_detections(detections: list[tuple[str, float]]) -> str:
 
 
 def structure_plate_text(detections: list[tuple[str, float]]) -> PlateExtractionResult:
-    """Estrutura, via LLM de texto (OpenRouter), o texto já detectado localmente pelo
-    EasyOCR nos 9 campos do schema — recebe só as strings de texto e suas confianças,
-    nunca a imagem. Levanta LlmStructuringError se a chave não estiver configurada ou a
-    chamada falhar; nunca retorna dado parcial."""
-    structured_llm = _build_llm().with_structured_output(PlateExtractionResult)
-    chain = _PROMPT | structured_llm
+    """Estrutura, via LLM de texto (OpenRouter, tentando a lista de modelos de fallback),
+    o texto já detectado localmente pelo EasyOCR nos 9 campos do schema — recebe só as
+    strings de texto e suas confianças, nunca a imagem. Levanta LlmStructuringError se a
+    chave não estiver configurada ou se todos os modelos da lista falharem (incluindo
+    resposta cortada pelo teto de tokens); nunca retorna dado parcial."""
+    detections_text = _format_detections(detections)
+
+    def _run(llm):
+        chain = _PROMPT | llm.with_structured_output(PlateExtractionResult)
+        return chain.invoke({"detections_text": detections_text})
 
     try:
-        return chain.invoke({"detections_text": _format_detections(detections)})
-    except Exception as exc:
+        return llm_client.invoke_with_fallback(
+            _run, temperature=0, max_tokens=_MAX_OUTPUT_TOKENS
+        )
+    except (llm_client.LlmConfigError, llm_client.LlmAllModelsFailedError) as exc:
         raise LlmStructuringError(
             f"Falha ao consultar o LLM via OpenRouter: {exc}"
         ) from exc

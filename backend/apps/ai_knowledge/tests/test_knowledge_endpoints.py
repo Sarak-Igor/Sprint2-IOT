@@ -165,3 +165,102 @@ def test_ask_rejects_too_short_question():
 
     assert response.status_code == 422
     mock_answer.assert_not_called()
+
+
+def test_list_manuals_returns_manuals_derived_from_vector_store(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        knowledge_router_module.settings, "knowledge_storage_path", str(tmp_path)
+    )
+    client = _build_client()
+    pdf_dir = tmp_path / "pdfs"
+    pdf_dir.mkdir()
+    pdf_bytes = b"%PDF-fake-content"
+    (pdf_dir / "id-a.pdf").write_bytes(pdf_bytes)
+
+    fake_manuals = [
+        {
+            "manual_id": "id-a",
+            "filename": "manual_a.pdf",
+            "paginas": 3,
+            "chunks_indexados": 5,
+        }
+    ]
+
+    with patch.object(
+        knowledge_router_module, "list_indexed_manuals", return_value=fake_manuals
+    ):
+        response = client.get("/api/knowledge/manuals")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == [
+        {
+            "manual_id": "id-a",
+            "filename": "manual_a.pdf",
+            "paginas": 3,
+            "chunks_indexados": 5,
+            "tamanho_bytes": len(pdf_bytes),
+            "download_url": "/api/knowledge/manuals/id-a/download",
+        }
+    ]
+
+
+def test_list_manuals_returns_empty_list_when_no_manual_indexed():
+    client = _build_client()
+
+    with patch.object(knowledge_router_module, "list_indexed_manuals", return_value=[]):
+        response = client.get("/api/knowledge/manuals")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_manuals_returns_zero_size_when_pdf_file_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        knowledge_router_module.settings, "knowledge_storage_path", str(tmp_path)
+    )
+    client = _build_client()
+    fake_manuals = [
+        {
+            "manual_id": "id-orfao",
+            "filename": "manual.pdf",
+            "paginas": 1,
+            "chunks_indexados": 1,
+        }
+    ]
+
+    with patch.object(
+        knowledge_router_module, "list_indexed_manuals", return_value=fake_manuals
+    ):
+        response = client.get("/api/knowledge/manuals")
+
+    assert response.status_code == 200
+    assert response.json()[0]["tamanho_bytes"] == 0
+
+
+def test_download_manual_returns_pdf_when_file_exists(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        knowledge_router_module.settings, "knowledge_storage_path", str(tmp_path)
+    )
+    client = _build_client()
+    pdf_dir = tmp_path / "pdfs"
+    pdf_dir.mkdir()
+    pdf_bytes = b"%PDF-fake-content"
+    (pdf_dir / "id-a.pdf").write_bytes(pdf_bytes)
+
+    response = client.get("/api/knowledge/manuals/id-a/download")
+
+    assert response.status_code == 200
+    assert response.content == pdf_bytes
+    assert response.headers["content-type"] == "application/pdf"
+
+
+def test_download_manual_returns_404_when_file_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        knowledge_router_module.settings, "knowledge_storage_path", str(tmp_path)
+    )
+    client = _build_client()
+
+    response = client.get("/api/knowledge/manuals/nao-existe/download")
+
+    assert response.status_code == 404

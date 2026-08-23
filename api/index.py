@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.apps.asset_manager.web.router import router as asset_router
 from backend.apps.asset_manager.vision.router import router as vision_router
 from backend.apps.ai_knowledge.router import router as knowledge_router
+from backend.apps.ai_knowledge.agent.router import router as agent_router
 from backend.shared_infra.database_client import AsyncSessionLocal
 from backend.apps.asset_manager.infrastructure.models import (
     TelemetryMappingDB,
@@ -26,7 +27,6 @@ from backend.apps.asset_manager.domain.entities import (
     DataVariable,
     SensorHardware,
 )
-from backend.shared_infra.storage_client import storage_client
 from backend.shared_infra.config import settings
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -36,6 +36,7 @@ app = FastAPI()
 app.include_router(asset_router, prefix="/api")
 app.include_router(vision_router, prefix="/api")
 app.include_router(knowledge_router, prefix="/api")
+app.include_router(agent_router, prefix="/api")
 
 
 @app.middleware("http")
@@ -485,25 +486,6 @@ async def list_models():
     except Exception as e:
         print(f"ERRO GET /api/assets/models: {e}")
         return []
-
-
-@app.get("/api/manuals")
-async def get_manuals():
-    """
-    Retorna a lista de manuais disponíveis no storage R2.
-    """
-    manual_name = "manual-weg-w22.pdf"
-    download_url = storage_client.get_download_url(manual_name)
-
-    return [
-        {
-            "title": "Manual Técnico WEG W22",
-            "category": "Técnico",
-            "url": download_url,
-            "size": "24.1 MB",
-            "tags": ["W22", "Motor Trifásico", "WEG"],
-        }
-    ]
 
 
 # Para o Vercel, o objeto 'app' deve estar disponível no nível do módulo

@@ -23,6 +23,7 @@ import Catalogs from './pages/Catalogs';
 import History from './pages/History';
 import Vision from './pages/Vision';
 import Knowledge from './pages/Knowledge';
+import Agent from './pages/Agent';
 import FlowSimulator from './pages/simulator/FlowSimulator';
 
 const SYSTEM_ID = "Forzy";
@@ -41,6 +42,7 @@ registerLocalComponent('assets', Assets);
 registerLocalComponent('history', History);
 registerLocalComponent('vision', Vision);
 registerLocalComponent('knowledge', Knowledge);
+registerLocalComponent('agent', Agent);
 registerLocalComponent('simulator', FlowSimulator);
 
 // 3. MOCK DE AUTENTICAÇÃO E CONTEXTO
