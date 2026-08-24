@@ -80,11 +80,11 @@ def structure_plate_image(image_bytes: bytes) -> PlateExtractionResult:
                     content=(
                         "Você é um especialista em extração de dados de placas de motores elétricos. "
                         "Analise a imagem fornecida e extraia as informações com extrema precisão. "
-                        "ATENÇÃO: O 'modelo' costuma estar em destaque no topo (ex: W22, W21). "
+                        "ATENÇÃO: A 'marca' ou fabricante costuma estar no logotipo (ex: WEG, Siemens). O 'modelo' costuma estar em destaque no topo (ex: W22, W21). "
                         "A 'tensao' e 'corrente' costumam estar em tabelas (ex: 220/380V). "
                         "Se algum campo estiver completamente ilegível, responda 'Não legível'. "
                         "Responda EXCLUSIVAMENTE em formato JSON contendo exatamente estas chaves: "
-                        '{"modelo": "", "potencia": "", "rpm": "", "carcaca": "", "tensao": "", "corrente": "", "ip": "", "classe_isol": "", "confianca": 100.0}'
+                        '{"marca": "", "modelo": "", "potencia": "", "rpm": "", "carcaca": "", "tensao": "", "corrente": "", "ip": "", "classe_isol": "", "confianca": 100.0}'
                     )
                 ),
                 HumanMessage(

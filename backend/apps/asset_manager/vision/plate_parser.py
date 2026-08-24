@@ -6,6 +6,7 @@ from backend.apps.asset_manager.vision.schemas import PlateExtractionResult
 NAO_LEGIVEL = "Não legível"
 
 _FIELD_ORDER = [
+    "marca",
     "rpm",
     "tensao",
     "corrente",
@@ -17,6 +18,7 @@ _FIELD_ORDER = [
 ]
 
 _FIELD_PATTERNS: dict[str, re.Pattern] = {
+    "marca": re.compile(r"\b(?:WEG|SIEMENS|ABB|SEW|KOHLBACH|EBERLE)\b", re.IGNORECASE),
     "rpm": re.compile(r"\b\d{3,5}\s*RPM\b", re.IGNORECASE),
     "tensao": re.compile(r"\b\d{2,3}(?:/\d{2,3}){0,2}\s*V\b", re.IGNORECASE),
     "corrente": re.compile(

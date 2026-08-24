@@ -21,6 +21,7 @@ def _build_client():
 
 def _sample_result():
     return PlateExtractionResult(
+        marca="WEG",
         modelo="W22 Super Premium",
         potencia="7.5 kW (10 HP)",
         rpm="1750",

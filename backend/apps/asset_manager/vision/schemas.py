@@ -6,6 +6,7 @@ class PlateExtractionResult(BaseModel):
     cliente sem passar por esta validação. Campos como string (não numéricos) porque uma
     placa real mistura formatos (ex.: tensão tripla '220/380/440V', carcaça '132S')."""
 
+    marca: str = Field(..., min_length=1, max_length=120)
     modelo: str = Field(..., min_length=1, max_length=120)
     potencia: str = Field(..., min_length=1, max_length=60)
     rpm: str = Field(..., min_length=1, max_length=30)
