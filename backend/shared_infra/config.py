@@ -53,6 +53,11 @@ class Settings(BaseSettings):
         "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
     )
 
+    groq_api_key: str = os.getenv("GROQ_API_KEY", "")
+    groq_base_url: str = os.getenv(
+        "GROQ_BASE_URL", "https://api.groq.com/openai/v1"
+    )
+
     # Base de Conhecimento (RAG) — PDFs e vetor-store 100% locais (decisão do usuário,
     # 2026-08-22: sem depender de rede externa/Cloudflare R2 aqui, ver 00-contexto.md §8)
     knowledge_storage_path: str = os.getenv(

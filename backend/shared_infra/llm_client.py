@@ -49,11 +49,31 @@ def invoke_with_fallback(run: Callable[[ChatOpenAI], T], **llm_kwargs) -> T:
     model_ids = _load_model_ids()
     last_error: Exception | None = None
 
+    configs = []
     for model_id in model_ids:
+        configs.append({
+            "api_key": settings.openrouter_api_key,
+            "base_url": settings.openrouter_base_url,
+            "model": model_id
+        })
+        
+    if settings.groq_api_key:
+        groq_models = [
+            "llama-3.1-70b-versatile",
+            "llama-3.1-8b-instant"
+        ]
+        for m in groq_models:
+            configs.append({
+                "api_key": settings.groq_api_key,
+                "base_url": settings.groq_base_url,
+                "model": m
+            })
+
+    for config in configs:
         llm = ChatOpenAI(
-            api_key=settings.openrouter_api_key,
-            base_url=settings.openrouter_base_url,
-            model=model_id,
+            api_key=config["api_key"],
+            base_url=config.get("base_url"),
+            model=config["model"],
             **llm_kwargs,
         )
         try:
@@ -62,5 +82,30 @@ def invoke_with_fallback(run: Callable[[ChatOpenAI], T], **llm_kwargs) -> T:
             last_error = exc
 
     raise LlmAllModelsFailedError(
-        f"Todos os {len(model_ids)} modelos da lista falharam. Último erro: {last_error}"
+        f"Todos os {len(configs)} modelos da lista falharam. Último erro: {last_error}"
+    ) from last_error
+
+
+def invoke_vision_with_fallback(run: Callable[[ChatOpenAI], T], models_config: list[dict], **llm_kwargs) -> T:
+    """Tenta, em ordem, cada modelo fornecido na lista de configuração para tarefas multimodais (visão).
+    models_config deve ser uma lista de dicionários com chaves 'api_key', 'base_url' e 'model'."""
+    if not models_config:
+        raise LlmConfigError("Nenhum modelo de visão foi fornecido para a lista de fallback.")
+
+    last_error: Exception | None = None
+
+    for config in models_config:
+        llm = ChatOpenAI(
+            api_key=config["api_key"],
+            base_url=config.get("base_url"),
+            model=config["model"],
+            **llm_kwargs,
+        )
+        try:
+            return run(llm)
+        except Exception as exc:
+            last_error = exc
+
+    raise LlmAllModelsFailedError(
+        f"Todos os {len(models_config)} modelos de visão falharam. Último erro: {last_error}"
     ) from last_error

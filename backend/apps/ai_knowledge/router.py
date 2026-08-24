@@ -11,6 +11,7 @@ from backend.apps.ai_knowledge.schemas import (
     AskResponse,
     IngestResponse,
     ManualInfo,
+    AutoIngestRequest,
 )
 from backend.apps.ai_knowledge.vector_store import add_chunks, list_indexed_manuals
 from backend.shared_infra.config import settings
@@ -76,6 +77,89 @@ async def ingest_manual(file: UploadFile = File(...)):
 
     manual_id = str(uuid.uuid4())
     filename = file.filename or "manual.pdf"
+    _save_pdf_locally(manual_id, pdf_bytes)
+
+    chunk_ids = [f"{manual_id}-{i}" for i in range(len(extraction.chunks))]
+    documents = [chunk.text for chunk in extraction.chunks]
+    metadatas = [
+        {
+            "source": filename,
+            "page": chunk.page,
+            "manual_id": manual_id,
+            "technology_tag": chunk.technology_tag,
+        }
+        for chunk in extraction.chunks
+    ]
+    add_chunks(chunk_ids, documents, metadatas)
+
+    return IngestResponse(
+        manual_id=manual_id,
+        filename=filename,
+        paginas=extraction.total_pages,
+        chunks_indexados=len(extraction.chunks),
+    )
+
+
+@router.post("/auto-ingest-manual", response_model=IngestResponse)
+async def auto_ingest_manual(request: AutoIngestRequest):
+    import httpx
+    from googlesearch import search
+    
+    filename = f"manual_{request.marca.lower().replace(' ', '_')}_{request.modelo.lower().replace(' ', '_')}.pdf"
+    
+    # 1. Verifica se já não foi indexado para evitar duplicatas
+    indexed = list_indexed_manuals()
+    for manual in indexed:
+        if manual["filename"] == filename:
+            # Já existe, retorna os dados dele sem rebaixar
+            return IngestResponse(
+                manual_id=manual["manual_id"],
+                filename=manual["filename"],
+                paginas=manual["paginas"],
+                chunks_indexados=manual["chunks_indexados"],
+            )
+
+    # 2. Pesquisa na web
+    query = f"{request.marca} {request.modelo} motor elétrico manual filetype:pdf"
+    urls = []
+    try:
+        urls = list(search(query, num_results=5, sleep_interval=2))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro na busca: {exc}")
+    
+    pdf_url = None
+    for url in urls:
+        if url.lower().endswith(".pdf"):
+            pdf_url = url
+            break
+            
+    if not pdf_url:
+        raise HTTPException(status_code=404, detail="Manual em PDF não encontrado na web")
+        
+    # 3. Baixa o PDF
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(pdf_url)
+            resp.raise_for_status()
+            pdf_bytes = resp.content
+            if b"%PDF" not in pdf_bytes[:10]:
+                raise ValueError("Arquivo não é um PDF válido")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Falha ao baixar manual: {exc}")
+        
+    if len(pdf_bytes) > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail="PDF muito grande")
+
+    # 4. Extrai e indexa (mesma lógica do ingest normal)
+    try:
+        extraction = extract_and_chunk_pdf(pdf_bytes)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"PDF inválido: {exc}")
+
+    if not extraction.chunks:
+        raise HTTPException(status_code=422, detail="Não foi possível extrair texto do PDF baixado")
+
+    manual_id = str(uuid.uuid4())
     _save_pdf_locally(manual_id, pdf_bytes)
 
     chunk_ids = [f"{manual_id}-{i}" for i in range(len(extraction.chunks))]

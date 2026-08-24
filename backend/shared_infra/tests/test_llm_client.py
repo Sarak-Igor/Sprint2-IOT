@@ -37,6 +37,7 @@ def test_invoke_with_fallback_uses_next_model_when_first_fails(tmp_path, monkeyp
     )
     monkeypatch.setattr(llm_client, "_MODELS_PATH", models_path)
     monkeypatch.setattr(llm_client.settings, "openrouter_api_key", "fake-key")
+    monkeypatch.setattr(llm_client.settings, "groq_api_key", "")
 
     with patch.object(
         llm_client, "ChatOpenAI", side_effect=_fake_chat_openai_factory({"modelo-a"})
@@ -53,6 +54,7 @@ def test_invoke_with_fallback_raises_when_all_models_fail(tmp_path, monkeypatch)
     )
     monkeypatch.setattr(llm_client, "_MODELS_PATH", models_path)
     monkeypatch.setattr(llm_client.settings, "openrouter_api_key", "fake-key")
+    monkeypatch.setattr(llm_client.settings, "groq_api_key", "")
 
     with patch.object(
         llm_client,

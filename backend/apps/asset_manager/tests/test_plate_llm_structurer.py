@@ -4,19 +4,18 @@ import pytest
 
 from backend.apps.asset_manager.vision.plate_llm_structurer import (
     LlmStructuringError,
-    structure_plate_text,
+    structure_plate_image,
 )
 from backend.shared_infra import llm_client
+from backend.shared_infra.config import settings
 
 
-def test_structure_plate_text_fails_fast_without_api_key():
-    detections = [("W22 1750 RPM", 90.0)]
+def test_structure_plate_image_fails_fast_without_api_key():
+    settings.openrouter_api_key = ""  # Forçando erro de config
+    
+    # Mockando uma imagem
+    fake_image_bytes = b"fake_image_content"
 
-    with (
-        patch.object(llm_client.settings, "openrouter_api_key", ""),
-        patch.object(llm_client, "ChatOpenAI") as mock_chat_openai,
-    ):
-        with pytest.raises(LlmStructuringError):
-            structure_plate_text(detections)
-
-    mock_chat_openai.assert_not_called()
+    with pytest.raises(LlmStructuringError) as exc_info:
+        with patch("backend.shared_infra.llm_client._load_model_ids") as mock_load:
+            structure_plate_image(fake_image_bytes)

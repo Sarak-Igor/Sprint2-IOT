@@ -32,3 +32,9 @@ class ManualInfo(BaseModel):
     chunks_indexados: int
     tamanho_bytes: int
     download_url: str
+
+
+class AutoIngestRequest(BaseModel):
+    marca: str
+    modelo: str
+

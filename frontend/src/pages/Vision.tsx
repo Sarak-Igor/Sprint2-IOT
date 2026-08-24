@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, CheckCircle, AlertCircle, Scan, History, FileText } from 'lucide-react';
+import { Camera, Upload, CheckCircle, AlertCircle, Scan, History, FileText, Search } from 'lucide-react';
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -8,6 +8,8 @@ const Vision = () => {
     const [scanResult, setScanResult] = useState<any | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isSearchingManual, setIsSearchingManual] = useState(false);
+    const [manualSuccess, setManualSuccess] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFile = async (file: File) => {
@@ -20,6 +22,7 @@ const Vision = () => {
         setError(null);
         setIsScanning(true);
         setScanResult(null);
+        setManualSuccess(null);
 
         const formData = new FormData();
         formData.append('file', file);
@@ -36,6 +39,39 @@ const Vision = () => {
             setError('Falha de rede ao contatar o backend.');
         } finally {
             setIsScanning(false);
+        }
+    };
+
+    const handleSearchManual = async () => {
+        if (!scanResult?.marca || !scanResult?.modelo) {
+            setError("Marca e Modelo são necessários para buscar o manual.");
+            return;
+        }
+
+        setIsSearchingManual(true);
+        setError(null);
+        setManualSuccess(null);
+
+        try {
+            const res = await fetch('/api/knowledge/auto-ingest-manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    marca: scanResult.marca,
+                    modelo: scanResult.modelo,
+                }),
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                setManualSuccess(`Manual indexado com sucesso! (${data.paginas} páginas)`);
+            } else {
+                setError(data?.detail || "Erro ao buscar manual na web.");
+            }
+        } catch (e) {
+            setError("Falha de rede ao contatar o servidor.");
+        } finally {
+            setIsSearchingManual(false);
         }
     };
 
@@ -122,6 +158,11 @@ const Vision = () => {
                                 {error}
                             </p>
                         )}
+                        {manualSuccess && (
+                            <p className="text-xs text-[var(--theme-success)] font-bold bg-[var(--theme-success)]/10 border border-[var(--theme-success)]/20 rounded-2xl p-4">
+                                {manualSuccess}
+                            </p>
+                        )}
                     </div>
 
                     <div className="bg-theme-card border-theme p-6 rounded-theme">
@@ -185,13 +226,20 @@ const Vision = () => {
                     </div>
 
                     {scanResult && (
-                        <div className="mt-auto flex gap-3 pt-6 border-t border-white/5">
-                            <button className="flex-1 bg-[var(--theme-primary)] text-black py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all flex items-center justify-center gap-2">
+                        <div className="mt-auto flex flex-wrap gap-3 pt-6 border-t border-white/5">
+                            <button className="flex-[1_1_100%] bg-[var(--theme-primary)] text-black py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-all flex items-center justify-center gap-2">
                                 <FileText size={14} /> Vincular ao Ativo
                             </button>
                             <button
-                                onClick={() => { setScanResult(null); setPreviewUrl(null); setError(null); }}
-                                className="px-6 py-3 bg-white/5 text-white/60 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                                onClick={handleSearchManual}
+                                disabled={isSearchingManual}
+                                className="flex-1 bg-white/10 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/20 border border-white/10 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <Search size={14} /> {isSearchingManual ? 'Buscando...' : 'Buscar Manual Web'}
+                            </button>
+                            <button
+                                onClick={() => { setScanResult(null); setPreviewUrl(null); setError(null); setManualSuccess(null); }}
+                                className="flex-1 px-6 py-3 bg-white/5 text-white/60 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
                             >
                                 Novo Scan
                             </button>
