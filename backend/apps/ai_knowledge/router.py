@@ -103,7 +103,7 @@ async def ingest_manual(file: UploadFile = File(...)):
 @router.post("/auto-ingest-manual", response_model=IngestResponse)
 async def auto_ingest_manual(request: AutoIngestRequest):
     import httpx
-    from googlesearch import search
+    from duckduckgo_search import DDGS
     
     filename = f"manual_{request.marca.lower().replace(' ', '_')}_{request.modelo.lower().replace(' ', '_')}.pdf"
     
@@ -111,7 +111,6 @@ async def auto_ingest_manual(request: AutoIngestRequest):
     indexed = list_indexed_manuals()
     for manual in indexed:
         if manual["filename"] == filename:
-            # Já existe, retorna os dados dele sem rebaixar
             return IngestResponse(
                 manual_id=manual["manual_id"],
                 filename=manual["filename"],
@@ -119,33 +118,56 @@ async def auto_ingest_manual(request: AutoIngestRequest):
                 chunks_indexados=manual["chunks_indexados"],
             )
 
-    # 2. Pesquisa na web
-    query = f"{request.marca} {request.modelo} motor elétrico manual filetype:pdf"
+    # 2. Pesquisa na web (DuckDuckGo Search)
+    import anyio
+    query = f"{request.marca} {request.modelo} motor filetype:pdf"
     urls = []
-    try:
-        urls = list(search(query, num_results=5, sleep_interval=2))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Erro na busca: {exc}")
     
-    pdf_url = None
-    for url in urls:
-        if url.lower().endswith(".pdf"):
-            pdf_url = url
-            break
-            
-    if not pdf_url:
-        raise HTTPException(status_code=404, detail="Manual em PDF não encontrado na web")
-        
-    # 3. Baixa o PDF
+    def _search_ddg():
+        from duckduckgo_search import DDGS
+        ddgs = DDGS()
+        return ddgs.text(query, max_results=10)
+
     try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            resp = await client.get(pdf_url)
-            resp.raise_for_status()
-            pdf_bytes = resp.content
-            if b"%PDF" not in pdf_bytes[:10]:
-                raise ValueError("Arquivo não é um PDF válido")
+        results = await anyio.to_thread.run_sync(_search_ddg)
+        urls = [r["href"] for r in results if "href" in r]
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Falha ao baixar manual: {exc}")
+        raise HTTPException(status_code=500, detail=f"Erro na busca via DDGS: {exc}")
+    
+    if not urls:
+        raise HTTPException(status_code=404, detail="Nenhum resultado encontrado para o manual")
+
+    pdf_url = None
+    pdf_bytes = b""
+    
+    # 3. Validação Real via HTTP HEAD/GET
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for url in urls:
+            try:
+                # Checa o cabeçalho primeiro para não baixar coisas inúteis
+                head_resp = await client.head(url)
+                if head_resp.status_code == 405:
+                    # Alguns servidores rejeitam HEAD, tentar GET stream
+                    async with client.stream("GET", url) as stream_resp:
+                        content_type = stream_resp.headers.get("Content-Type", "")
+                else:
+                    content_type = head_resp.headers.get("Content-Type", "")
+                
+                # Se validou que é um PDF, fazemos o download completo
+                if "application/pdf" in content_type.lower() or url.lower().endswith(".pdf"):
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    candidate_bytes = resp.content
+                    # Assinatura mágica de PDF
+                    if b"%PDF" in candidate_bytes[:10]:
+                        pdf_url = url
+                        pdf_bytes = candidate_bytes
+                        break
+            except Exception:
+                continue
+
+    if not pdf_url or not pdf_bytes:
+        raise HTTPException(status_code=404, detail="Manual em PDF não encontrado nos links verificados")
         
     if len(pdf_bytes) > MAX_PDF_BYTES:
         raise HTTPException(status_code=413, detail="PDF muito grande")
