@@ -70,6 +70,38 @@ const AppContent = () => {
         document.body.classList.add('dark', 'sarak-sovereign');
         document.documentElement.setAttribute('data-sarak-theme', sarakManifest.design.theme);
         document.documentElement.setAttribute('data-sarak-layout', 'sovereign');
+
+        document.title = "Industrial Mind";
+        
+        const observer = new MutationObserver(() => {
+            if (document.title !== "Industrial Mind") {
+                document.title = "Industrial Mind";
+            }
+            
+            // Hardcode hide "Design Engine" tab
+            const elements = document.querySelectorAll('a, button, div, span');
+            elements.forEach(el => {
+                if (el.textContent?.trim() === 'Design Engine') {
+                    let target = el as HTMLElement;
+                    // If it's a span inside a button/link, hide the parent
+                    if (target.tagName === 'SPAN' && target.parentElement) {
+                        target = target.parentElement;
+                    }
+                    target.style.display = 'none';
+                    if (target.parentElement && target.parentElement.tagName === 'LI') {
+                        target.parentElement.style.display = 'none';
+                    }
+                }
+            });
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            observer.observe(titleEl, { childList: true });
+        }
+        
+        return () => observer.disconnect();
     }, []);
 
     return (
