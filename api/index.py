@@ -10,9 +10,25 @@ import aiohttp
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.apps.asset_manager.web.router import router as asset_router
-from backend.apps.asset_manager.vision.router import router as vision_router
-from backend.apps.ai_knowledge.router import router as knowledge_router
-from backend.apps.ai_knowledge.agent.router import router as agent_router
+import logging
+
+try:
+    from backend.apps.asset_manager.vision.router import router as vision_router
+except ImportError as e:
+    logging.warning(f"Vision router omitted: {e}")
+    vision_router = None
+
+try:
+    from backend.apps.ai_knowledge.router import router as knowledge_router
+except ImportError as e:
+    logging.warning(f"Knowledge router omitted: {e}")
+    knowledge_router = None
+
+try:
+    from backend.apps.ai_knowledge.agent.router import router as agent_router
+except ImportError as e:
+    logging.warning(f"Agent router omitted: {e}")
+    agent_router = None
 from backend.shared_infra.database_client import AsyncSessionLocal
 from backend.apps.asset_manager.infrastructure.models import (
     TelemetryMappingDB,
@@ -34,9 +50,12 @@ from typing import List
 
 app = FastAPI()
 app.include_router(asset_router, prefix="/api")
-app.include_router(vision_router, prefix="/api")
-app.include_router(knowledge_router, prefix="/api")
-app.include_router(agent_router, prefix="/api")
+if vision_router:
+    app.include_router(vision_router, prefix="/api")
+if knowledge_router:
+    app.include_router(knowledge_router, prefix="/api")
+if agent_router:
+    app.include_router(agent_router, prefix="/api")
 
 
 @app.middleware("http")
