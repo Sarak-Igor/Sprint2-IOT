@@ -18,9 +18,9 @@ def _get_vision_models_config():
     # 1. OpenRouter Models (Primary)
     if settings.openrouter_api_key:
         openrouter_models = [
-            "google/gemma-4-26b-a4b-it:free",
-            "google/gemma-4-31b-it:free",
-            "nvidia/nemotron-nano-12b-v2-vl:free",
+            "google/gemini-1.5-flash",
+            "openai/gpt-4o-mini",
+            "meta-llama/llama-3.2-90b-vision-instruct",
         ]
         for m in openrouter_models:
             configs.append({
