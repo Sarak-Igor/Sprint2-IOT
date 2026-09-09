@@ -1,92 +1,148 @@
 from functools import lru_cache
-from pathlib import Path
+from sentence_transformers import SentenceTransformer
+from sqlalchemy import select, func, text
+from sqlalchemy.orm import Session
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-from chromadb.utils import embedding_functions
+from backend.shared_infra.database_client.postgresql import engine
+from backend.apps.ai_knowledge.models import KnowledgeManualDB, KnowledgeChunkDB
+import asyncio
 
-from backend.shared_infra.config import settings
-
-_COLLECTION_NAME = "manuais_tecnicos_v3"
-
-# Teto de "coleção pequena": abaixo disso, a busca recupera todos os chunks (ignora o
-# ranking do embedding) em vez de só o top-N — um manual técnico de ~4 páginas já indexa
-# ~6 chunks com o splitter atual (chunk_size=1000, overlap=200); 50 chunks cobre
-# confortavelmente um manual pequeno/médio inteiro (dezenas de páginas) sem estourar
-# custo/latência quando a base crescer com mais manuais (plan-16).
 SMALL_COLLECTION_CHUNK_THRESHOLD = 150
 
-# Modelo multilingue 100% local e open-source para suportar o Português perfeitamente
-_embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="paraphrase-multilingual-MiniLM-L12-v2"
-)
-
-
 @lru_cache(maxsize=1)
-def _get_collection():
-    """Coleção ChromaDB persistida em disco local, sem telemetria — 100% offline após o
-    primeiro download do modelo de embedding padrão (onnxruntime, cacheado localmente)."""
-    storage_path = Path(settings.knowledge_storage_path) / "vector_store"
-    storage_path.mkdir(parents=True, exist_ok=True)
-    client = chromadb.PersistentClient(
-        path=str(storage_path), settings=ChromaSettings(anonymized_telemetry=False)
-    )
-    return client.get_or_create_collection(
-        name=_COLLECTION_NAME,
-        embedding_function=_embedding_fn
-    )
+def _get_embedding_model():
+    """Carrega o modelo de embedding 100% local (mesmo usado antes com Chroma)."""
+    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
 
 
-def add_chunks(chunk_ids, documents, metadatas):
-    _get_collection().add(ids=chunk_ids, documents=documents, metadatas=metadatas)
+def _embed_texts(texts: list[str]) -> list[list[float]]:
+    model = _get_embedding_model()
+    # model.encode retorna numpy arrays
+    embeddings = model.encode(texts)
+    return [e.tolist() for e in embeddings]
 
 
-def query_similar_chunks(question: str, n_results: int = 15):
-    """Retorna pares (texto, metadata) relevantes à pergunta, ou lista vazia se nenhum
-    manual foi indexado ainda. Recuperação adaptativa: quando a coleção tem no máximo
-    SMALL_COLLECTION_CHUNK_THRESHOLD chunks, recupera todos (um embedding local pequeno
-    pode rankear mal um trecho denso — ex.: tabela técnica — abaixo do top-N); acima do
-    teto, mantém o comportamento de sempre (até `n_results`), para não estourar
-    custo/latência quando a base de manuais crescer."""
-    collection = _get_collection()
-    count = collection.count()
-    if count == 0:
-        return []
-
-    effective_n_results = (
-        count if count <= SMALL_COLLECTION_CHUNK_THRESHOLD else min(n_results, count)
-    )
-    result = collection.query(query_texts=[question], n_results=effective_n_results)
-    documents = result.get("documents", [[]])[0]
-    metadatas = result.get("metadatas", [[]])[0]
-    return list(zip(documents, metadatas))
+async def _run_async(coro):
+    """Utilitário para rodar código assíncrono se necessário, mas como vector_store 
+    é chamado por router que pode ser async, devemos idealmente refatorar tudo para async.
+    Contudo, para manter paridade com a API anterior síncrona do add_chunks, 
+    vamos manter a execução via loop."""
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        # Estamos num event loop (FastAPI). No router.py, add_chunks é chamado bloqueando.
+        # Mas router.py é async def ingest_manual. Então chamar bloqueante lá era ruim.
+        raise RuntimeError("Utilize a nova interface assíncrona para vector_store.")
+    else:
+        return loop.run_until_complete(coro)
 
 
-def list_indexed_manuals() -> list[dict]:
-    """Deriva a lista de manuais realmente indexados a partir dos metadados já gravados no
-    ChromaDB (`source`, `page`, `manual_id`, gravados por `router.py` na ingestão) —
-    agrupa os chunks por `manual_id`, sem duplicar esse estado em nenhuma estrutura
-    paralela. `paginas` é a maior página vista (nº de páginas com pelo menos um chunk
-    indexado); `chunks_indexados` é a contagem de chunks daquele manual. Lista vazia se
-    nenhum manual foi indexado ainda (mesmo espírito de `query_similar_chunks`)."""
-    collection = _get_collection()
-    if collection.count() == 0:
-        return []
+async def add_chunks_async(chunk_ids, documents, metadatas, pdf_bytes: bytes = None):
+    from backend.shared_infra.database_client.postgresql import AsyncSessionLocal
+    embeddings = _embed_texts(documents)
 
-    metadatas = collection.get(include=["metadatas"])["metadatas"]
-    manuals: dict[str, dict] = {}
-    for metadata in metadatas:
-        manual_id = metadata["manual_id"]
-        manual = manuals.setdefault(
-            manual_id,
-            {
-                "manual_id": manual_id,
-                "filename": metadata["source"],
-                "paginas": 0,
-                "chunks_indexados": 0,
-            },
+    async with AsyncSessionLocal() as session:
+        # Se um manual estiver sendo indexado, garantimos a persistência dele com o PDF primeiro
+        if metadatas and pdf_bytes is not None:
+            first_meta = metadatas[0]
+            manual_id = first_meta["manual_id"]
+            
+            # Verifica se já existe
+            res = await session.execute(select(KnowledgeManualDB).where(KnowledgeManualDB.manual_id == manual_id))
+            manual_db = res.scalar_one_or_none()
+            
+            if not manual_db:
+                manual_db = KnowledgeManualDB(
+                    manual_id=manual_id,
+                    filename=first_meta.get("source", f"{manual_id}.pdf"),
+                    pdf_bytes=pdf_bytes,
+                    total_pages=max([m.get("page", 0) for m in metadatas], default=0)
+                )
+                session.add(manual_db)
+
+        # Adiciona os chunks
+        for i, chunk_id in enumerate(chunk_ids):
+            meta = metadatas[i]
+            chunk_db = KnowledgeChunkDB(
+                chunk_id=chunk_id,
+                manual_id=meta["manual_id"],
+                page=meta.get("page", 0),
+                technology_tag=meta.get("technology_tag", ""),
+                document=documents[i],
+                embedding=embeddings[i]
+            )
+            session.add(chunk_db)
+            
+        await session.commit()
+
+# Retrocompatibilidade temporária ou renomear no router
+async def add_chunks(*args, **kwargs):
+    return await add_chunks_async(*args, **kwargs)
+
+
+async def query_similar_chunks_async(question: str, n_results: int = 15):
+    from backend.shared_infra.database_client.postgresql import AsyncSessionLocal
+    
+    question_embedding = _embed_texts([question])[0]
+    
+    async with AsyncSessionLocal() as session:
+        # Recupera total de chunks
+        count_res = await session.execute(select(func.count(KnowledgeChunkDB.chunk_id)))
+        count = count_res.scalar()
+        
+        if count == 0:
+            return []
+            
+        effective_n_results = (
+            count if count <= SMALL_COLLECTION_CHUNK_THRESHOLD else min(n_results, count)
         )
-        manual["paginas"] = max(manual["paginas"], metadata["page"])
-        manual["chunks_indexados"] += 1
+        
+        # pgvector: ordenação por distância de cosseno (<=>)
+        stmt = select(KnowledgeChunkDB).order_by(KnowledgeChunkDB.embedding.cosine_distance(question_embedding)).limit(effective_n_results)
+        res = await session.execute(stmt)
+        chunks_db = res.scalars().all()
+        
+        # Formato de retorno mantendo o padrão Chroma: [(texto, metadata)]
+        results = []
+        for c in chunks_db:
+            metadata = {
+                "manual_id": c.manual_id,
+                "page": c.page,
+                "source": getattr(c.manual, 'filename', ''),
+                "technology_tag": c.technology_tag
+            }
+            results.append((c.document, metadata))
+            
+        return results
 
-    return list(manuals.values())
+# Retrocompatibilidade para RAG
+def query_similar_chunks(question: str, n_results: int = 15):
+    # O RAG engine também precisará ser async, mas por agora podemos encapsular
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        # Estamos num async def answer_question ? Precisamos checar router
+        raise RuntimeError("Use query_similar_chunks_async")
+    return asyncio.run(query_similar_chunks_async(question, n_results))
+
+
+async def list_indexed_manuals_async() -> list[dict]:
+    from backend.shared_infra.database_client.postgresql import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
+        stmt = select(KnowledgeManualDB)
+        res = await session.execute(stmt)
+        manuals_db = res.scalars().all()
+        
+        results = []
+        for m in manuals_db:
+            # Conta chunks usando lazy loading ou podemos fazer subquery (otimização para o futuro)
+            chunks_count_res = await session.execute(
+                select(func.count(KnowledgeChunkDB.chunk_id)).where(KnowledgeChunkDB.manual_id == m.manual_id)
+            )
+            chunks_count = chunks_count_res.scalar()
+            
+            results.append({
+                "manual_id": m.manual_id,
+                "filename": m.filename,
+                "paginas": m.total_pages,
+                "chunks_indexados": chunks_count,
+            })
+        return results

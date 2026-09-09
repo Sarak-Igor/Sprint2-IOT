@@ -1,8 +1,8 @@
 import uuid
-from pathlib import Path
+from io import BytesIO
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile, Response
+from sqlalchemy import select
 
 from backend.apps.ai_knowledge.pdf_ingestion import extract_and_chunk_pdf
 from backend.apps.ai_knowledge.rag_engine import KnowledgeQueryError, answer_question
@@ -13,43 +13,13 @@ from backend.apps.ai_knowledge.schemas import (
     ManualInfo,
     AutoIngestRequest,
 )
-from backend.apps.ai_knowledge.vector_store import add_chunks, list_indexed_manuals
-from backend.shared_infra.config import settings
+from backend.apps.ai_knowledge.vector_store import add_chunks_async, list_indexed_manuals_async
+from backend.shared_infra.database_client.postgresql import AsyncSessionLocal
+from backend.apps.ai_knowledge.models import KnowledgeManualDB
 
 router = APIRouter(prefix="/knowledge", tags=["Knowledge Base (RAG)"])
 
 MAX_PDF_BYTES = 100 * 1024 * 1024  # 100MB
-
-
-def _pdf_dir() -> Path:
-    return Path(settings.knowledge_storage_path) / "pdfs"
-
-
-def _pdf_size_or_zero(manual_id: str) -> int:
-    pdf_path = _pdf_dir() / f"{manual_id}.pdf"
-    return pdf_path.stat().st_size if pdf_path.exists() else 0
-
-
-def _resolve_manual_pdf_path(manual_id: str) -> Path:
-    """Resolve o caminho do PDF local a partir do manual_id da URL, confirmando que o
-    resultado continua dentro de `pdf_dir` — defesa contra path traversal via o
-    parâmetro vindo do cliente, mesmo espírito do `_save_pdf_locally` acima."""
-    pdf_dir = _pdf_dir().resolve()
-    candidate = (pdf_dir / f"{manual_id}.pdf").resolve()
-    if pdf_dir not in candidate.parents:
-        raise HTTPException(status_code=404, detail="Manual não encontrado")
-    return candidate
-
-
-def _save_pdf_locally(manual_id: str, pdf_bytes: bytes) -> None:
-    """Salva o PDF original em disco local (settings.knowledge_storage_path) — nunca via
-    storage_client/Cloudflare R2, decisão explícita do usuário para esta feature. O nome do
-    arquivo usa só o manual_id (gerado pelo servidor), nunca o filename enviado pelo cliente,
-    para não abrir caminho de path traversal."""
-    pdf_dir = _pdf_dir()
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-    (pdf_dir / f"{manual_id}.pdf").write_bytes(pdf_bytes)
-
 
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest_manual(file: UploadFile = File(...)):
@@ -77,7 +47,6 @@ async def ingest_manual(file: UploadFile = File(...)):
 
     manual_id = str(uuid.uuid4())
     filename = file.filename or "manual.pdf"
-    _save_pdf_locally(manual_id, pdf_bytes)
 
     chunk_ids = [f"{manual_id}-{i}" for i in range(len(extraction.chunks))]
     documents = [chunk.text for chunk in extraction.chunks]
@@ -90,7 +59,9 @@ async def ingest_manual(file: UploadFile = File(...)):
         }
         for chunk in extraction.chunks
     ]
-    add_chunks(chunk_ids, documents, metadatas)
+    
+    # Salva no banco de dados (vetores + arquivo binário)
+    await add_chunks_async(chunk_ids, documents, metadatas, pdf_bytes)
 
     return IngestResponse(
         manual_id=manual_id,
@@ -103,12 +74,11 @@ async def ingest_manual(file: UploadFile = File(...)):
 @router.post("/auto-ingest-manual", response_model=IngestResponse)
 async def auto_ingest_manual(request: AutoIngestRequest):
     import httpx
-    from duckduckgo_search import DDGS
     
     filename = f"manual_{request.marca.lower().replace(' ', '_')}_{request.modelo.lower().replace(' ', '_')}.pdf"
     
     # 1. Verifica se já não foi indexado para evitar duplicatas
-    indexed = list_indexed_manuals()
+    indexed = await list_indexed_manuals_async()
     for manual in indexed:
         if manual["filename"] == filename:
             return IngestResponse(
@@ -144,21 +114,17 @@ async def auto_ingest_manual(request: AutoIngestRequest):
     async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
         for url in urls:
             try:
-                # Checa o cabeçalho primeiro para não baixar coisas inúteis
                 head_resp = await client.head(url)
                 if head_resp.status_code == 405:
-                    # Alguns servidores rejeitam HEAD, tentar GET stream
                     async with client.stream("GET", url) as stream_resp:
                         content_type = stream_resp.headers.get("Content-Type", "")
                 else:
                     content_type = head_resp.headers.get("Content-Type", "")
                 
-                # Se validou que é um PDF, fazemos o download completo
                 if "application/pdf" in content_type.lower() or url.lower().endswith(".pdf"):
                     resp = await client.get(url)
                     resp.raise_for_status()
                     candidate_bytes = resp.content
-                    # Assinatura mágica de PDF
                     if b"%PDF" in candidate_bytes[:10]:
                         pdf_url = url
                         pdf_bytes = candidate_bytes
@@ -172,7 +138,7 @@ async def auto_ingest_manual(request: AutoIngestRequest):
     if len(pdf_bytes) > MAX_PDF_BYTES:
         raise HTTPException(status_code=413, detail="PDF muito grande")
 
-    # 4. Extrai e indexa (mesma lógica do ingest normal)
+    # 4. Extrai e indexa 
     try:
         extraction = extract_and_chunk_pdf(pdf_bytes)
     except Exception as exc:
@@ -182,7 +148,6 @@ async def auto_ingest_manual(request: AutoIngestRequest):
         raise HTTPException(status_code=422, detail="Não foi possível extrair texto do PDF baixado")
 
     manual_id = str(uuid.uuid4())
-    _save_pdf_locally(manual_id, pdf_bytes)
 
     chunk_ids = [f"{manual_id}-{i}" for i in range(len(extraction.chunks))]
     documents = [chunk.text for chunk in extraction.chunks]
@@ -195,7 +160,8 @@ async def auto_ingest_manual(request: AutoIngestRequest):
         }
         for chunk in extraction.chunks
     ]
-    add_chunks(chunk_ids, documents, metadatas)
+    
+    await add_chunks_async(chunk_ids, documents, metadatas, pdf_bytes)
 
     return IngestResponse(
         manual_id=manual_id,
@@ -208,33 +174,57 @@ async def auto_ingest_manual(request: AutoIngestRequest):
 @router.post("/ask", response_model=AskResponse)
 async def ask_knowledge_base(request: AskRequest):
     try:
-        return answer_question(request.pergunta)
+        # A resposta pode bloquear um pouco o event loop pela inferência (se for local)
+        # Idealmente deveria rodar num thread ou usar endpoint async completo
+        import anyio
+        return await anyio.to_thread.run_sync(answer_question, request.pergunta)
     except KnowledgeQueryError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
 
 @router.get("/manuals", response_model=list[ManualInfo])
 async def list_manuals():
-    """Lista os manuais realmente indexados no vetor-store — nenhum valor fixo, deriva do
-    estado real do RAG (`list_indexed_manuals`)."""
-    return [
-        ManualInfo(
-            manual_id=manual["manual_id"],
-            filename=manual["filename"],
-            paginas=manual["paginas"],
-            chunks_indexados=manual["chunks_indexados"],
-            tamanho_bytes=_pdf_size_or_zero(manual["manual_id"]),
-            download_url=f"/api/knowledge/manuals/{manual['manual_id']}/download",
-        )
-        for manual in list_indexed_manuals()
-    ]
+    """Lista os manuais realmente indexados no banco Neon."""
+    indexed = await list_indexed_manuals_async()
+    
+    # Busca tamanho e preenche o restante
+    results = []
+    async with AsyncSessionLocal() as session:
+        for manual in indexed:
+            # Pegando o tamanho do PDF a partir do banco de dados para popular o schema
+            stmt = select(KnowledgeManualDB).where(KnowledgeManualDB.manual_id == manual["manual_id"])
+            res = await session.execute(stmt)
+            manual_db = res.scalar_one_or_none()
+            size = len(manual_db.pdf_bytes) if manual_db and manual_db.pdf_bytes else 0
+            
+            results.append(
+                ManualInfo(
+                    manual_id=manual["manual_id"],
+                    filename=manual["filename"],
+                    paginas=manual["paginas"],
+                    chunks_indexados=manual["chunks_indexados"],
+                    tamanho_bytes=size,
+                    download_url=f"/api/knowledge/manuals/{manual['manual_id']}/download",
+                )
+            )
+    return results
 
 
 @router.get("/manuals/{manual_id}/download")
 async def download_manual(manual_id: str):
-    """Serve o PDF original a partir do disco local — sem storage_client/Cloudflare R2,
-    decisão já tomada para `ai_knowledge` (`00-contexto.md §8`)."""
-    pdf_path = _resolve_manual_pdf_path(manual_id)
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="Manual não encontrado")
-    return FileResponse(pdf_path, media_type="application/pdf", filename=pdf_path.name)
+    """Serve o PDF original a partir da coluna bytea do banco Neon."""
+    async with AsyncSessionLocal() as session:
+        stmt = select(KnowledgeManualDB).where(KnowledgeManualDB.manual_id == manual_id)
+        res = await session.execute(stmt)
+        manual_db = res.scalar_one_or_none()
+        
+        if not manual_db or not manual_db.pdf_bytes:
+            raise HTTPException(status_code=404, detail="Manual não encontrado")
+            
+        return Response(
+            content=manual_db.pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{manual_db.filename}"'
+            }
+        )
