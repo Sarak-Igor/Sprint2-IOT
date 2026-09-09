@@ -1,8 +1,10 @@
 import os
 import sys
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import aiohttp
 import asyncio
 import aiohttp
 
@@ -107,17 +109,11 @@ async def get_assets():
         return []
 
 
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-CONFIG_FILE = BASE_DIR / "backend" / "simulator_config.json"
-
+# Configuração em memória para Serverless
+sys_config_mock = {"running": True, "interval": 5}
 
 def get_sys_config():
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"running": True, "interval": 5}
+    return sys_config_mock
 
 
 @app.get("/api/config")
@@ -127,21 +123,9 @@ async def get_config():
 
 @app.post("/api/config")
 async def update_config(config: dict):
-    try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(config, f)
-
-        # Publica no MQTT para notificar o ESP32 real ou Wokwi
-        if "interval" in config:
-            # Converte segundos do front para ms no ESP32
-            payload = json.dumps({"measurement_interval_ms": config["interval"] * 1000})
-            mqtt_client.publish("Forzy/config/device", payload)
-
-    except Exception as e:
-        # No Vercel o sistema de arquivos é read-only, então ignoramos o erro de escrita
-        # O estado 'running' será gerenciado pelo próprio frontend
-        print(f"Aviso: Não foi possível salvar no arquivo (ambiente serverless): {e}")
-    return config
+    global sys_config_mock
+    sys_config_mock.update(config)
+    return sys_config_mock
 
 
 # @app.post("/api/telemetry")
@@ -328,45 +312,12 @@ async def trigger_telegram_alert(payload: dict):
         )
 
 
-import json
-import paho.mqtt.client as mqtt
+class TelemetryPayload(BaseModel):
+    topic: str
+    payload: dict | float | str | int | None = None
+    value: float | None = None
 
-
-# Gerenciador de conexões WebSocket para Broadcast
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(message)
-            except:
-                continue
-
-
-manager = ConnectionManager()
-main_loop = None
-
-# Configuração do Cliente MQTT para a API
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
-
-def on_mqtt_connect(client, userdata, flags, rc, properties):
-    print("[DEBUG] API: Conectado ao Broker MQTT para Tempo Real")
-    client.subscribe("Forzy/telemetry/#")
-
-
-# Cache para resolução de tópicos na API
 topic_cache = {}
-
 
 async def resolve_topic_api(topic: str):
     if topic in topic_cache:
@@ -381,85 +332,85 @@ async def resolve_topic_api(topic: str):
             return topic_cache[topic]
     return None
 
+from backend.apps.asset_manager.infrastructure.models import OperationalAnomalyDB
 
-def on_mqtt_message(client, userdata, msg):
+@app.post("/api/telemetry/ingest")
+async def ingest_telemetry_webhook(data: TelemetryPayload):
     try:
-        payload_str = msg.payload.decode()
-        try:
-            payload = json.loads(payload_str)
-        except:
-            try:
-                payload = {"value": float(payload_str)}
-            except:
-                return
+        resolution = await resolve_topic_api(data.topic)
+        if not resolution:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Topic not mapped"})
 
-        # Busca resolução assíncrona
-        if main_loop and main_loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                process_and_broadcast(msg.topic, payload), main_loop
-            )
-
-    except Exception as e:
-        print(f"[ERROR] API MQTT Callback: {e}")
-
-
-async def process_and_broadcast(topic, payload):
-    # 1. Resolução Genérica
-    resolution = await resolve_topic_api(topic)
-
-    # Prepara o pacote de broadcast agnóstico
-    broadcast_data = {"topic": topic, "payload": payload, "is_generic": False}
-
-    if resolution:
         asset_id, variable_id = resolution
-        value = payload.get("value") if isinstance(payload, dict) else payload
-        broadcast_data.update(
-            {
-                "asset_id": str(asset_id),
-                "variable_id": str(variable_id),
-                "value": value,
-                "is_generic": True,
-            }
-        )
-    else:
-        print(f"[WARNING] Topic resolution failed for: {topic}")
+        
+        # Extrai o valor
+        value = None
+        if data.value is not None:
+            value = data.value
+        elif isinstance(data.payload, dict):
+            value = data.payload.get("value")
+        else:
+            value = float(data.payload) if data.payload is not None else None
 
-    # 2. Envio via WebSocket (Sistema 100% Asset-Agnostic)
-    await manager.broadcast(broadcast_data)
+        if value is None:
+            return JSONResponse(status_code=400, content={"status": "error", "message": "No valid value provided"})
 
+        # Salvar no banco e verificar anomalias
+        async with AsyncSessionLocal() as session:
+            try:
+                reading = TelemetryReadingDB(
+                    asset_id=asset_id,
+                    variable_id=variable_id,
+                    value=value
+                )
+                session.add(reading)
+                
+                # Checar anomalia
+                result = await session.execute(select(ActiveAssetDB).where(ActiveAssetDB.id == asset_id))
+                asset = result.scalar_one_or_none()
+                
+                if asset and asset.applied_thresholds:
+                    threshold_spec = asset.applied_thresholds.get(str(variable_id), {})
+                    critical = threshold_spec.get("critical")
+                    warning = threshold_spec.get("warning")
+                    nominal = threshold_spec.get("nominal")
+                    
+                    severity = None
+                    is_lower_limit = (critical is not None and nominal is not None and critical < nominal)
+                    
+                    if is_lower_limit:
+                        if critical is not None and value <= critical:
+                            severity = "critical"
+                        elif warning is not None and value <= warning:
+                            severity = "warning"
+                    else:
+                        if critical is not None and value >= critical:
+                            severity = "critical"
+                        elif warning is not None and value >= warning:
+                            severity = "warning"
+                    
+                    if severity:
+                        anomaly = OperationalAnomalyDB(
+                            asset_id=asset_id,
+                            variable_id=variable_id,
+                            value=value,
+                            severity=severity,
+                            threshold_value=critical if severity == "critical" else warning
+                        )
+                        session.add(anomaly)
+                        if severity == "critical":
+                            asset.status = "alert"
+                        elif severity == "warning" and asset.status == "operational":
+                            asset.status = "warning"
+                
+                await session.commit()
+                return {"status": "success"}
+            except Exception as e:
+                await session.rollback()
+                return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
-mqtt_client.on_connect = on_mqtt_connect
-mqtt_client.on_message = on_mqtt_message
-
-
-@app.on_event("startup")
-async def startup_event():
-    global main_loop
-    main_loop = asyncio.get_running_loop()
-    broker_url = settings.mqtt_broker_url.replace("mqtt://", "")
-    host, port = broker_url.split(":")
-    mqtt_client.connect(host, int(port))
-    mqtt_client.loop_start()
-
-
-@app.websocket("/api/ws/telemetry")
-async def websocket_telemetry(websocket: WebSocket):
-    await manager.connect(websocket)
-    print(
-        f"[DEBUG] WS: Novo cliente conectado. Total: {len(manager.active_connections)}"
-    )
-    try:
-        while True:
-            # Mantém a conexão viva
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        print(
-            f"[DEBUG] WS: Cliente desconectado. Total: {len(manager.active_connections)}"
-        )
     except Exception as e:
-        print(f"[ERROR] WS Error: {e}")
-        manager.disconnect(websocket)
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 
 @app.get("/api/assets/stats")
