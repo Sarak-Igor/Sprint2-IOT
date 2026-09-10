@@ -365,8 +365,11 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
                 "name": asset.name,
                 "location": asset.location,
                 "status": asset.status,
-                "motor_model": motor_model
-                or {
+                "motor_model": {
+                    "id": str(motor_model.id),
+                    "brand": motor_model.brand,
+                    "model": motor_model.model,
+                } if motor_model else {
                     "brand": "Unknown",
                     "model": "Unknown",
                     "id": str(asset.motor_model_id),
