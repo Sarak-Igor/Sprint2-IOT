@@ -90,6 +90,61 @@ const DigitalTwin = () => {
         const wsUrl = `${protocol}//${window.location.host}/api/ws/telemetry`;
         let ws: WebSocket | null = null;
 
+        // Modo Simulador de Apresentação (Início Imediato sem esperar cair WS)
+        if (!(window as any)._mockStartedDigitalTwin) {
+            (window as any)._mockStartedDigitalTwin = true;
+            console.log("[SIMULADOR] Iniciando geração de dados (Apresentação)...");
+            const runSim = () => {
+                setAssets(currentAssets => {
+                    currentAssets.forEach(asset => {
+                        if (!asset.sensors) return;
+                        asset.sensors.forEach((s: any) => {
+                            const topicKey = s.topic;
+                            const nominal = s.thresholds?.nominal || 50;
+                            const critical = s.thresholds?.critical || (nominal * 1.5);
+                            
+                            const isAlert = Math.random() < 0.5;
+                            let val = isAlert 
+                                ? critical + (Math.random() * (critical * 0.2))
+                                : nominal + (Math.random() * (critical - nominal) * 0.5);
+                            val = parseFloat(val.toFixed(2));
+                            
+                            fetch('/api/telemetry/ingest', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ topic: topicKey, payload: { value: val } })
+                            }).catch(() => {});
+                            
+                            setTelemetry(prev => ({ ...prev, [topicKey]: val }));
+                            setHistory(prev => {
+                                const newHistory = { ...prev };
+                                const current = newHistory[topicKey] || [];
+                                
+                                // Pré-preenchimento "Viagem no Tempo" se estiver vazio
+                                if (current.length === 0) {
+                                    const fakePast = [];
+                                    for(let i=0; i<19; i++) {
+                                        const pastIsAlert = Math.random() < 0.1;
+                                        let pastVal = pastIsAlert 
+                                            ? critical + (Math.random() * (critical * 0.1))
+                                            : nominal + (Math.random() * (critical - nominal) * 0.5);
+                                        fakePast.push(parseFloat(pastVal.toFixed(2)));
+                                    }
+                                    newHistory[topicKey] = [...fakePast, val];
+                                } else {
+                                    newHistory[topicKey] = [...current, val].slice(-20);
+                                }
+                                return newHistory;
+                            });
+                        });
+                    });
+                    return currentAssets;
+                });
+            };
+            runSim(); // Executa imediatamente
+            setInterval(runSim, 15000);
+        }
+
         const connectWS = () => {
             ws = new WebSocket(wsUrl);
             ws.onmessage = (event) => {
@@ -98,7 +153,6 @@ const DigitalTwin = () => {
                     const topicKey = data.topic;
 
                     if (topicKey) {
-                        // Normalização do dado recebido (suporta múltiplos formatos de payload)
                         let val = 0;
                         if (data.value !== undefined) {
                             val = data.value;
@@ -108,7 +162,6 @@ const DigitalTwin = () => {
                             val = parseFloat(data.payload) || 0;
                         }
 
-                        // Atualiza telemetria atual e empilha novo ponto no histórico (limite de 20 pontos para performance)
                         setTelemetry(prev => ({ ...prev, [topicKey]: val }));
                         setHistory(prev => {
                             const newHistory = { ...prev };
@@ -119,61 +172,9 @@ const DigitalTwin = () => {
                     }
                 } catch (e) {}
             };
-            // Reconexão automática caso o socket caia + Modo Simulador de Apresentação
+            
+            // Reconexão automática caso o socket caia
             ws.onclose = () => {
-                if (!(window as any)._mockStartedDigitalTwin) {
-                    (window as any)._mockStartedDigitalTwin = true;
-                    console.log("[SIMULADOR] Iniciando geração de dados (Apresentação)...");
-                    const runSim = () => {
-                        setAssets(currentAssets => {
-                            currentAssets.forEach(asset => {
-                                if (!asset.sensors) return;
-                                asset.sensors.forEach((s: any) => {
-                                    const topicKey = s.topic;
-                                    const nominal = s.thresholds?.nominal || 50;
-                                    const critical = s.thresholds?.critical || (nominal * 1.5);
-                                    
-                                    const isAlert = Math.random() < 0.5;
-                                    let val = isAlert 
-                                        ? critical + (Math.random() * (critical * 0.2))
-                                        : nominal + (Math.random() * (critical - nominal) * 0.5);
-                                    val = parseFloat(val.toFixed(2));
-                                    
-                                    fetch('/api/telemetry/ingest', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ topic: topicKey, payload: { value: val } })
-                                    }).catch(() => {});
-                                    
-                                    setTelemetry(prev => ({ ...prev, [topicKey]: val }));
-                                    setHistory(prev => {
-                                        const newHistory = { ...prev };
-                                        const current = newHistory[topicKey] || [];
-                                        
-                                        // Pré-preenchimento "Viagem no Tempo" se estiver vazio
-                                        if (current.length === 0) {
-                                            const fakePast = [];
-                                            for(let i=0; i<19; i++) {
-                                                const pastIsAlert = Math.random() < 0.1;
-                                                let pastVal = pastIsAlert 
-                                                    ? critical + (Math.random() * (critical * 0.1))
-                                                    : nominal + (Math.random() * (critical - nominal) * 0.5);
-                                                fakePast.push(parseFloat(pastVal.toFixed(2)));
-                                            }
-                                            newHistory[topicKey] = [...fakePast, val];
-                                        } else {
-                                            newHistory[topicKey] = [...current, val].slice(-20);
-                                        }
-                                        return newHistory;
-                                    });
-                                });
-                            });
-                            return currentAssets;
-                        });
-                    };
-                    runSim(); // Executa imediatamente
-                    setInterval(runSim, 15000);
-                }
                 setTimeout(connectWS, 10000); // Tenta reconectar a cada 10s pra não floodar a Vercel
             };
         };

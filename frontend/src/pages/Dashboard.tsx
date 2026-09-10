@@ -100,6 +100,61 @@ const Dashboard = () => {
         const wsUrl = `${protocol}//${window.location.host}/api/ws/telemetry`;
         let ws: WebSocket | null = null;
 
+        // Modo Simulador de Apresentação (Início Imediato sem esperar cair WS)
+        if (!(window as any)._mockStartedDashboard) {
+            (window as any)._mockStartedDashboard = true;
+            const runSim = () => {
+                setAssets(currentAssets => {
+                    currentAssets.forEach(asset => {
+                        if (!asset.sensors) return;
+                        asset.sensors.forEach(s => {
+                            const topicKey = s.topic;
+                            const nominal = s.thresholds?.nominal || 50;
+                            const critical = s.thresholds?.critical || (nominal * 1.5);
+                            
+                            const isAlert = Math.random() < 0.5;
+                            let val = isAlert 
+                                ? critical + (Math.random() * (critical * 0.2))
+                                : nominal + (Math.random() * (critical - nominal) * 0.5);
+                            val = parseFloat(val.toFixed(2));
+                            
+                            fetch('/api/telemetry/ingest', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ topic: topicKey, payload: { value: val } })
+                            }).catch(() => {});
+                            
+                            setTelemetry(prev => ({ ...prev, [topicKey]: val }));
+                            setLastActive(prev => ({ ...prev, [topicKey]: Date.now() }));
+                            setHistory(prev => {
+                                const newHistory = { ...prev };
+                                const current = newHistory[topicKey] || [];
+                                
+                                // Pré-preenchimento "Viagem no Tempo" se estiver vazio
+                                if (current.length === 0) {
+                                    const fakePast = [];
+                                    for(let i=0; i<19; i++) {
+                                        const pastIsAlert = Math.random() < 0.1;
+                                        let pastVal = pastIsAlert 
+                                            ? critical + (Math.random() * (critical * 0.1))
+                                            : nominal + (Math.random() * (critical - nominal) * 0.5);
+                                        fakePast.push(parseFloat(pastVal.toFixed(2)));
+                                    }
+                                    newHistory[topicKey] = [...fakePast, val];
+                                } else {
+                                    newHistory[topicKey] = [...current, val].slice(-20);
+                                }
+                                return newHistory;
+                            });
+                        });
+                    });
+                    return currentAssets;
+                });
+            };
+            runSim(); // Executa imediatamente
+            setInterval(runSim, 15000);
+        }
+
         const connectWS = () => {
             ws = new WebSocket(wsUrl);
             ws.onmessage = (event) => {
@@ -131,60 +186,7 @@ const Dashboard = () => {
                 }
             };
             ws.onclose = () => {
-                if (!(window as any)._mockStartedDashboard) {
-                    (window as any)._mockStartedDashboard = true;
-                    const runSim = () => {
-                        setAssets(currentAssets => {
-                            currentAssets.forEach(asset => {
-                                if (!asset.sensors) return;
-                                asset.sensors.forEach(s => {
-                                    const topicKey = s.topic;
-                                    const nominal = s.thresholds?.nominal || 50;
-                                    const critical = s.thresholds?.critical || (nominal * 1.5);
-                                    
-                                    const isAlert = Math.random() < 0.5;
-                                    let val = isAlert 
-                                        ? critical + (Math.random() * (critical * 0.2))
-                                        : nominal + (Math.random() * (critical - nominal) * 0.5);
-                                    val = parseFloat(val.toFixed(2));
-                                    
-                                    fetch('/api/telemetry/ingest', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ topic: topicKey, payload: { value: val } })
-                                    }).catch(() => {});
-                                    
-                                    setTelemetry(prev => ({ ...prev, [topicKey]: val }));
-                                    setLastActive(prev => ({ ...prev, [topicKey]: Date.now() }));
-                                    setHistory(prev => {
-                                        const newHistory = { ...prev };
-                                        const current = newHistory[topicKey] || [];
-                                        
-                                        // Pré-preenchimento "Viagem no Tempo" se estiver vazio
-                                        if (current.length === 0) {
-                                            const fakePast = [];
-                                            for(let i=0; i<19; i++) {
-                                                const pastIsAlert = Math.random() < 0.1;
-                                                let pastVal = pastIsAlert 
-                                                    ? critical + (Math.random() * (critical * 0.1))
-                                                    : nominal + (Math.random() * (critical - nominal) * 0.5);
-                                                fakePast.push(parseFloat(pastVal.toFixed(2)));
-                                            }
-                                            newHistory[topicKey] = [...fakePast, val];
-                                        } else {
-                                            newHistory[topicKey] = [...current, val].slice(-20);
-                                        }
-                                        return newHistory;
-                                    });
-                                });
-                            });
-                            return currentAssets;
-                        });
-                    };
-                    runSim(); // Executa imediatamente
-                    setInterval(runSim, 15000);
-                }
-                setTimeout(connectWS, 10000);
+                setTimeout(connectWS, 10000); // Tenta reconectar a cada 10s
             };
         };
 
