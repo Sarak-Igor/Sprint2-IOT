@@ -159,7 +159,21 @@ const Dashboard = () => {
                                     setHistory(prev => {
                                         const newHistory = { ...prev };
                                         const current = newHistory[topicKey] || [];
-                                        newHistory[topicKey] = [...current, val].slice(-20);
+                                        
+                                        // Pré-preenchimento "Viagem no Tempo" se estiver vazio
+                                        if (current.length === 0) {
+                                            const fakePast = [];
+                                            for(let i=0; i<19; i++) {
+                                                const pastIsAlert = Math.random() < 0.1;
+                                                let pastVal = pastIsAlert 
+                                                    ? critical + (Math.random() * (critical * 0.1))
+                                                    : nominal + (Math.random() * (critical - nominal) * 0.5);
+                                                fakePast.push(parseFloat(pastVal.toFixed(2)));
+                                            }
+                                            newHistory[topicKey] = [...fakePast, val];
+                                        } else {
+                                            newHistory[topicKey] = [...current, val].slice(-20);
+                                        }
                                         return newHistory;
                                     });
                                 });
