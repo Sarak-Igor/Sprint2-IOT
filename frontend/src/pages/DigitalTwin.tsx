@@ -124,7 +124,7 @@ const DigitalTwin = () => {
                 if (!(window as any)._mockStartedDigitalTwin) {
                     (window as any)._mockStartedDigitalTwin = true;
                     console.log("[SIMULADOR] Iniciando geração de dados (Apresentação)...");
-                    setInterval(() => {
+                    const runSim = () => {
                         setAssets(currentAssets => {
                             currentAssets.forEach(asset => {
                                 if (!asset.sensors) return;
@@ -133,17 +133,17 @@ const DigitalTwin = () => {
                                     const nominal = s.thresholds?.nominal || 50;
                                     const critical = s.thresholds?.critical || (nominal * 1.5);
                                     
-                                    // 50% de chance de forçar um alerta (acima do crítico)
                                     const isAlert = Math.random() < 0.5;
-                                    
-                                    let val = 0;
-                                    if (isAlert) {
-                                        val = critical + (Math.random() * (critical * 0.2));
-                                    } else {
-                                        val = nominal + (Math.random() * (critical - nominal) * 0.5);
-                                    }
-                                    
+                                    let val = isAlert 
+                                        ? critical + (Math.random() * (critical * 0.2))
+                                        : nominal + (Math.random() * (critical - nominal) * 0.5);
                                     val = parseFloat(val.toFixed(2));
+                                    
+                                    fetch('/api/telemetry/ingest', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ topic: topicKey, payload: { value: val } })
+                                    }).catch(() => {});
                                     
                                     setTelemetry(prev => ({ ...prev, [topicKey]: val }));
                                     setHistory(prev => {
@@ -156,7 +156,9 @@ const DigitalTwin = () => {
                             });
                             return currentAssets;
                         });
-                    }, 15000);
+                    };
+                    runSim(); // Executa imediatamente
+                    setInterval(runSim, 15000);
                 }
                 setTimeout(connectWS, 10000); // Tenta reconectar a cada 10s pra não floodar a Vercel
             };

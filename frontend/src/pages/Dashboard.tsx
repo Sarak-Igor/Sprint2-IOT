@@ -133,7 +133,7 @@ const Dashboard = () => {
             ws.onclose = () => {
                 if (!(window as any)._mockStartedDashboard) {
                     (window as any)._mockStartedDashboard = true;
-                    setInterval(() => {
+                    const runSim = () => {
                         setAssets(currentAssets => {
                             currentAssets.forEach(asset => {
                                 if (!asset.sensors) return;
@@ -143,13 +143,16 @@ const Dashboard = () => {
                                     const critical = s.thresholds?.critical || (nominal * 1.5);
                                     
                                     const isAlert = Math.random() < 0.5;
-                                    let val = 0;
-                                    if (isAlert) {
-                                        val = critical + (Math.random() * (critical * 0.2));
-                                    } else {
-                                        val = nominal + (Math.random() * (critical - nominal) * 0.5);
-                                    }
+                                    let val = isAlert 
+                                        ? critical + (Math.random() * (critical * 0.2))
+                                        : nominal + (Math.random() * (critical - nominal) * 0.5);
                                     val = parseFloat(val.toFixed(2));
+                                    
+                                    fetch('/api/telemetry/ingest', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ topic: topicKey, payload: { value: val } })
+                                    }).catch(() => {});
                                     
                                     setTelemetry(prev => ({ ...prev, [topicKey]: val }));
                                     setLastActive(prev => ({ ...prev, [topicKey]: Date.now() }));
@@ -163,7 +166,9 @@ const Dashboard = () => {
                             });
                             return currentAssets;
                         });
-                    }, 15000);
+                    };
+                    runSim(); // Executa imediatamente
+                    setInterval(runSim, 15000);
                 }
                 setTimeout(connectWS, 10000);
             };

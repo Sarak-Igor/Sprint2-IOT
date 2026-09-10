@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from backend.shared_infra.database_client.postgresql import engine
 from backend.apps.ai_knowledge.models import KnowledgeManualDB, KnowledgeChunkDB
 import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
 
 SMALL_COLLECTION_CHUNK_THRESHOLD = 150
 
