@@ -119,8 +119,46 @@ const DigitalTwin = () => {
                     }
                 } catch (e) {}
             };
-            // Reconexão automática caso o socket caia
-            ws.onclose = () => setTimeout(connectWS, 3000);
+            // Reconexão automática caso o socket caia + Modo Simulador de Apresentação
+            ws.onclose = () => {
+                if (!(window as any)._mockStartedDigitalTwin) {
+                    (window as any)._mockStartedDigitalTwin = true;
+                    console.log("[SIMULADOR] Iniciando geração de dados (Apresentação)...");
+                    setInterval(() => {
+                        setMappings(currentMappings => {
+                            currentMappings.forEach(mapping => {
+                                if (!mapping.mqtt_topic) return;
+                                const topicKey = mapping.mqtt_topic;
+                                
+                                const nominal = parseFloat(mapping.nominal) || 50;
+                                const critical = parseFloat(mapping.critical) || (nominal * 1.5);
+                                
+                                // 50% de chance de forçar um alerta (acima do crítico)
+                                const isAlert = Math.random() < 0.5;
+                                
+                                let val = 0;
+                                if (isAlert) {
+                                    val = critical + (Math.random() * (critical * 0.2));
+                                } else {
+                                    val = nominal + (Math.random() * (critical - nominal) * 0.5);
+                                }
+                                
+                                val = parseFloat(val.toFixed(2));
+                                
+                                setTelemetry(prev => ({ ...prev, [topicKey]: val }));
+                                setHistory(prev => {
+                                    const newHistory = { ...prev };
+                                    const current = newHistory[topicKey] || [];
+                                    newHistory[topicKey] = [...current, val].slice(-20);
+                                    return newHistory;
+                                });
+                            });
+                            return currentMappings;
+                        });
+                    }, 15000);
+                }
+                setTimeout(connectWS, 10000); // Tenta reconectar a cada 10s pra não floodar a Vercel
+            };
         };
 
         connectWS();

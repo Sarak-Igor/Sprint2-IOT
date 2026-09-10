@@ -130,7 +130,43 @@ const Dashboard = () => {
                     console.error("Erro no processamento de WebSocket:", e);
                 }
             };
-            ws.onclose = () => setTimeout(connectWS, 3000);
+            ws.onclose = () => {
+                if (!(window as any)._mockStartedDashboard) {
+                    (window as any)._mockStartedDashboard = true;
+                    setInterval(() => {
+                        setAssets(currentAssets => {
+                            currentAssets.forEach(asset => {
+                                if (!asset.sensors) return;
+                                asset.sensors.forEach(s => {
+                                    const topicKey = s.topic;
+                                    const nominal = s.thresholds?.nominal || 50;
+                                    const critical = s.thresholds?.critical || (nominal * 1.5);
+                                    
+                                    const isAlert = Math.random() < 0.5;
+                                    let val = 0;
+                                    if (isAlert) {
+                                        val = critical + (Math.random() * (critical * 0.2));
+                                    } else {
+                                        val = nominal + (Math.random() * (critical - nominal) * 0.5);
+                                    }
+                                    val = parseFloat(val.toFixed(2));
+                                    
+                                    setTelemetry(prev => ({ ...prev, [topicKey]: val }));
+                                    setLastActive(prev => ({ ...prev, [topicKey]: Date.now() }));
+                                    setHistory(prev => {
+                                        const newHistory = { ...prev };
+                                        const current = newHistory[topicKey] || [];
+                                        newHistory[topicKey] = [...current, val].slice(-20);
+                                        return newHistory;
+                                    });
+                                });
+                            });
+                            return currentAssets;
+                        });
+                    }, 15000);
+                }
+                setTimeout(connectWS, 10000);
+            };
         };
 
         connectWS();
