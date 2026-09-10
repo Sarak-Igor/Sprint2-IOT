@@ -13,18 +13,16 @@ load_dotenv()
 
 SMALL_COLLECTION_CHUNK_THRESHOLD = 150
 
-from langchain_openai import OpenAIEmbeddings
+# from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 @lru_cache(maxsize=1)
 def _get_embedding_model():
-    """Carrega o modelo de embedding da OpenAI."""
-    return OpenAIEmbeddings(model="text-embedding-3-small")
-
+    """Carrega o modelo de embedding."""
+    return None
 
 def _embed_texts(texts: list[str]) -> list[list[float]]:
-    model = _get_embedding_model()
-    embeddings = model.embed_documents(texts)
-    return embeddings
+    # embeddings desativados
+    return []
 
 
 async def _run_async(coro):
@@ -43,15 +41,15 @@ async def _run_async(coro):
 
 async def add_chunks_async(chunk_ids, documents, metadatas, pdf_bytes: bytes = None):
     from backend.shared_infra.database_client.postgresql import AsyncSessionLocal
-    embeddings = _embed_texts(documents)
+    # DESATIVADO PARA A APRESENTAÇÃO: Pulamos a vetorização (embeddings)
+    # embeddings = _embed_texts(documents)
 
     async with AsyncSessionLocal() as session:
-        # Se um manual estiver sendo indexado, garantimos a persistência dele com o PDF primeiro
+        # Apenas salva o arquivo PDF cru no banco de dados para listar no Frontend
         if metadatas and pdf_bytes is not None:
             first_meta = metadatas[0]
             manual_id = first_meta["manual_id"]
             
-            # Verifica se já existe
             res = await session.execute(select(KnowledgeManualDB).where(KnowledgeManualDB.manual_id == manual_id))
             manual_db = res.scalar_one_or_none()
             
@@ -64,18 +62,8 @@ async def add_chunks_async(chunk_ids, documents, metadatas, pdf_bytes: bytes = N
                 )
                 session.add(manual_db)
 
-        # Adiciona os chunks
-        for i, chunk_id in enumerate(chunk_ids):
-            meta = metadatas[i]
-            chunk_db = KnowledgeChunkDB(
-                chunk_id=chunk_id,
-                manual_id=meta["manual_id"],
-                page=meta.get("page", 0),
-                technology_tag=meta.get("technology_tag", ""),
-                document=documents[i],
-                embedding=embeddings[i]
-            )
-            session.add(chunk_db)
+        # DESATIVADO: Não insere os chunks de texto no banco
+        # for i, chunk_id in enumerate(chunk_ids): ...
             
         await session.commit()
 
