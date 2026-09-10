@@ -1,6 +1,6 @@
 from functools import lru_cache
 import os, tempfile
-from fastembed import TextEmbedding
+
 from sqlalchemy import select, func, text
 from sqlalchemy.orm import Session
 
@@ -10,18 +10,18 @@ import asyncio
 
 SMALL_COLLECTION_CHUNK_THRESHOLD = 150
 
+from langchain_openai import OpenAIEmbeddings
+
 @lru_cache(maxsize=1)
 def _get_embedding_model():
-    """Carrega o modelo de embedding FastEmbed (CPU-only, ultra leve, sem PyTorch).
-    Caches in /tmp for Vercel Serverless compatibility."""
-    cache_dir = os.environ.get("FASTEMBED_CACHE_PATH", tempfile.gettempdir())
-    return TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2", cache_dir=cache_dir)
+    """Carrega o modelo de embedding da OpenAI."""
+    return OpenAIEmbeddings(model="text-embedding-3-small")
 
 
 def _embed_texts(texts: list[str]) -> list[list[float]]:
     model = _get_embedding_model()
-    embeddings = list(model.embed(texts))
-    return [e.tolist() for e in embeddings]
+    embeddings = model.embed_documents(texts)
+    return embeddings
 
 
 async def _run_async(coro):
