@@ -20,11 +20,7 @@ except ImportError as e:
     logging.warning(f"Vision router omitted: {e}")
     vision_router = None
 
-try:
-    from backend.apps.ai_knowledge.router import router as knowledge_router
-except ImportError as e:
-    logging.warning(f"Knowledge router omitted: {e}")
-    knowledge_router = None
+from backend.apps.ai_knowledge.router import router as knowledge_router
 
 try:
     from backend.apps.ai_knowledge.agent.router import router as agent_router

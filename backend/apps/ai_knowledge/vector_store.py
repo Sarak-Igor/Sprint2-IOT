@@ -1,5 +1,5 @@
 from functools import lru_cache
-from sentence_transformers import SentenceTransformer
+from langchain_openai import OpenAIEmbeddings
 from sqlalchemy import select, func, text
 from sqlalchemy.orm import Session
 
@@ -11,15 +11,13 @@ SMALL_COLLECTION_CHUNK_THRESHOLD = 150
 
 @lru_cache(maxsize=1)
 def _get_embedding_model():
-    """Carrega o modelo de embedding 100% local (mesmo usado antes com Chroma)."""
-    return SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    """Carrega o modelo de embedding via OpenAI, reduzido para 384 dimensões (para bater com o schema do BD) para suportar Vercel."""
+    return OpenAIEmbeddings(model="text-embedding-3-small", dimensions=384)
 
 
 def _embed_texts(texts: list[str]) -> list[list[float]]:
     model = _get_embedding_model()
-    # model.encode retorna numpy arrays
-    embeddings = model.encode(texts)
-    return [e.tolist() for e in embeddings]
+    return model.embed_documents(texts)
 
 
 async def _run_async(coro):
