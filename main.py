@@ -8,8 +8,8 @@ import aiohttp
 import asyncio
 import aiohttp
 
-# Adiciona o diretório raiz ao path para que possamos importar de 'backend'
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Como main.py está na raiz, o diretório atual já é o correto para importar 'backend'.
+
 
 from backend.apps.asset_manager.web.router import router as asset_router
 import logging
