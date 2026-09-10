@@ -1,13 +1,7 @@
 from langchain_core.messages import HumanMessage, SystemMessage
-from sentence_transformers import CrossEncoder
-
 from backend.apps.ai_knowledge.schemas import AskResponse, SourceCitation
 from backend.apps.ai_knowledge.vector_store import query_similar_chunks
 from backend.shared_infra import llm_client
-
-# Re-ranker local rápido para refinar os top-15 do Chroma para os top-5 finais
-_reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
-
 
 class KnowledgeQueryError(Exception):
     """Levantada quando a resposta via LLM não pôde ser gerada (config ausente ou falha na
@@ -57,22 +51,16 @@ def answer_question(question: str) -> AskResponse:
     """Busca os trechos mais relevantes no vetor-store local e pede ao LLM (via OpenRouter,
     tentando a lista de modelos de fallback) uma resposta baseada só neles, com citação de
     manual + página."""
-    chunks = query_similar_chunks(question, n_results=15)
+    chunks = query_similar_chunks(question, n_results=5)
     if not chunks:
         return AskResponse(
             resposta="Nenhum manual foi indexado ainda — envie um PDF antes de perguntar.",
             fontes=[],
         )
 
-    # Re-ranking: avalia a relevância semântica refinada entre a pergunta e os chunks
-    pairs = [[question, text] for text, metadata in chunks]
-    scores = _reranker.predict(pairs)
-    
-    scored_chunks = list(zip(chunks, scores))
-    scored_chunks.sort(key=lambda x: x[1], reverse=True)
-    
-    # Filtra apenas os 5 melhores chunks para enviar ao LLM
-    top_chunks = [chunk for chunk, score in scored_chunks[:5]]
+    # Sem o reranker local (que causaria crash na Vercel por limite de tamanho),
+    # usamos diretamente os 5 melhores chunks retornados pela busca de vetor.
+    top_chunks = chunks
 
     human_message = (
         f"{_format_context(top_chunks)}\n\n<question>\n{question}\n</question>"
